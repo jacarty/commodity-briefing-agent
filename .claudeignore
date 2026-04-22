@@ -1,0 +1,61 @@
+# Files and directories Claude should not read
+
+# Sensitive configuration files
+.env
+.env.local
+.env.*
+*.key
+*.pem
+
+# Private directories
+/private/
+/secrets/
+
+# Large generated files
+*.log
+*.sqlite
+*.db
+
+# Build outputs
+/dist/
+/build/
+node_modules/
+
+# SSH keys
+*.pem
+*.key
+*.pub
+id_rsa
+id_rsa.pub
+
+# Other secrets
+**/secrets/
+**/credentials/
+*.secret
+*.password
+
+# Specific files
+config/production.json
+src/api-keys.ts
+
+# Use glob patterns
+**/*.secret
+**/credentials/*
+
+# AWS credentials
+.aws/credentials
+.aws/config
+
+# Ignore files with sensitive information
+terraform.tfvars
+*.tfvars
+*.tfvars.json
+
+# Backend configuration files
+backend.conf
+backend-*.conf
+
+# State files
+*.tfstate
+*.tfstate.*
+
