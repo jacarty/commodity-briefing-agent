@@ -1,16 +1,13 @@
-# [Project Name] — Claude Code Context
+# LangChain Exploration — Claude Code Context
 
 ## Project Overview
 
-<!-- One paragraph: what does this project do? -->
+This repo is to support initial exploration and learning of Langchain's product set (LangGraph, LangChain and LangSmith). Built collaboratively in coaching mode: I (the human) write code, Claude provides explanations and reviews. See docs/tutorial/ once it exists.
 
-**PRD:** `docs/prd/v1.0-prd.md`
-**Build Guide:** `docs/build-guides/v1.0-build-guide.md`
+The ultimate goal is to build a Daily Commodity Research agent - given the scale of data available Oil will be the focus to keep that side simple. The same agent will be created three ways across Anthropic, Bedrock and Vertex for comparison.
+
+**Build Guide:** `TBD`
 **Process:** `docs/process.md` — branch/PR cadence, pre-commit + pre-PR agent gates, trivial-change fast path, phase-boundary rituals. Read this before any feature work.
-
-<!-- If using issue tracking, add details here:
-**Issue Tracking:** [Tool] — [project/board name], [team/key]
--->
 
 ---
 
@@ -18,29 +15,24 @@
 
 <!-- High-level architecture diagram or description -->
 
-```
-[Frontend]
-    → [API Layer]
-    → [Compute]
-    → [Data Store]
-```
+
 
 <!-- Key technology choices -->
-
-- **Frontend:**
-- **Auth:**
-- **API:**
-- **Compute:**
-- **Persistence:**
-- **IaC:**
-- **CI/CD:**
+Tech Stack:
+- **Python: 3.12**
+- **uv**
+- **LangChain/LangGraph 1.0**
+- **CI/CD: GitHub Actions**
+- **Tavily for non-native search in phases 2 and 3**
+Phases:
+- **Phase 1 - Claude API**
+- **Phase 2 - Bedrock and AgentCore**
+- **Phase 3 - Vertex and Agent Engine**
 
 <!-- Environment details -->
 
 <!-- Example:
-**Cloud Account:** 123456789012
-**Region:** eu-west-1
-**GitHub Repo:** user/repo
+**TBD
 -->
 
 ---
@@ -51,10 +43,8 @@
 project/
 ├── CLAUDE.md                        # This file
 ├── docs/
-│   ├── prd/                         # Product requirements
-│   ├── build-guides/                # Implementation guides
+│   ├── build-guides/                # Implementation guides when created
 │   ├── process.md                   # Development process and agent cadence
-│   ├── tech-debt.md                 # Known gaps and drift
 │   └── decisions/                   # Architecture Decision Records
 ├── ...                              # Project-specific structure
 ```
@@ -66,35 +56,14 @@ project/
 
 ## Key Patterns
 
-<!-- Document the important architectural patterns, conventions, and contracts
-     that someone working on the codebase needs to know. Examples:
-
-- How auth tokens flow through the system
-- How errors are structured and propagated
-- Shared module/helper contracts
-- Naming conventions for files, functions, routes
-- Data model patterns (e.g. DynamoDB single-table design, SQL schema conventions)
--->
+TBD - will populate in Phase 1
 
 ---
 
-## Testing
-
-| Level | Tool | Scope |
-|-------|------|-------|
-| Unit | | |
-| Integration | | |
-| E2E | | |
-
-<!-- Add run commands:
-Run tests: `npm test` / `pytest` / etc.
--->
-
----
 
 ## Git Workflow
 
-**Branch strategy:** Feature branches → PR → merge to main.
+**Branch strategy:** Phase branches → PR → merge to main.
 
 ```
 main                    ← production; protected
@@ -108,25 +77,16 @@ main                    ← production; protected
 
 ## Deployment
 
-<!-- How does code get from main to production?
-- Infrastructure: terraform apply / CloudFormation / etc.
-- Application: auto-deploy on merge / manual deploy / etc.
-- CI/CD: which workflows run on PR vs merge
--->
+TBD - will populate in Phase 1
 
 ---
 
 ## Common Pitfalls & Constraints
 
-<!-- Document the things that have bitten you or will bite someone new.
-     These are the hard-won lessons — keep them updated.
-
-Examples:
-- Service X has a 30s timeout that affects Y
-- Config Z must be set before first deploy
-- Region constraint on service W
-- Item size limits on data store
--->
+uv is new to me — first project using it instead of pip/venv
+LangGraph 1.0 state schemas must be TypedDict not Pydantic
+Experienced Python 3.13 / Vertex ecosystem issues with ML prior
+Phase 1's LangSmith setup carries forward to Phases 2 and 3 unchanged — observability is the constant; the rest swaps
 
 ---
 
