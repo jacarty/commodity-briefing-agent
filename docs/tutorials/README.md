@@ -10,3 +10,4 @@ what I did but why the decisions made sense at the time.
 ## Index
 
 - [STEP-01 — Orientation and project framing](./01-orientation.md)
+- [STEP-02 — Environment setup and first model call](./environment-setup.md)
