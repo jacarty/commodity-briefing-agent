@@ -1,7 +1,6 @@
 from typing import TypedDict, Literal
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
-from langchain.agents import create_agent
 from briefing_agent.state import State
 from briefing_agent.prompts import load_prompt
 from briefing_agent.data_sources.prices import PriceDataSource
@@ -73,15 +72,13 @@ def research_news(state: State) -> dict:
         "max_uses": 5,
     }
     
-    agent = create_agent(
-        model="anthropic:claude-haiku-4-5",
-        tools=[web_search_tool],
-        response_format=NewsResearch,
-    )
-    
-    result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-    
-    return {"news_research": result["structured_response"]}
+    model = ChatAnthropic(
+        model="claude-haiku-4-5",
+    ).bind_tools([web_search_tool]).with_structured_output(NewsResearch)
+
+    result = model.invoke([HumanMessage(content=prompt)])
+
+    return {"news_research": result}
 
 
 class CatalystEvent(TypedDict):
@@ -322,16 +319,93 @@ def draft(state: State) -> dict:
     return {"draft": result}
 
 
+class SenseCheckResult(TypedDict):
+    passed: bool
+    faithfulness_issues: list[str]
+    structure_issues: list[str]
+    prose_issues: list[str]
+    consistency_issues: list[str]
+    revision_notes: str
+    summary: str
+
+
 def sense_check(state: State) -> dict:
     print("-> Sense-check")
-    return {"sense_check_result": {"passed": True}, "sense_check_attempts": state.get("sense_check_attempts", 0) + 1}
+    
+    draft = state["draft"]
+    
+    prompt = load_prompt(
+        "sense_check",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        synthesis=state["synthesis"],
+        price_section=draft["price_section"],
+        news_section=draft["news_section"],
+        catalysts_section=draft["catalysts_section"],
+        geopolitics_section=draft["geopolitics_section"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(SenseCheckResult)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    print(f"   passed: {result['passed']}")
+    if not result["passed"]:
+        print(f"   issues: faithfulness={result['faithfulness_issues']}, structure={result['structure_issues']}, prose={result['prose_issues']}, consistency={result['consistency_issues']}")
+        print(f"   revision_notes: {result['revision_notes']}")
+    
+    return {
+        "sense_check_result": result,
+        "sense_check_attempts": state.get("sense_check_attempts", 0) + 1,
+    }
 
 
 def revise(state: State) -> dict:
     print("-> Revise")
-    return {}
+    
+    draft = state["draft"]
+    sense_check_result = state["sense_check_result"]
+    
+    prompt = load_prompt(
+        "revise",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        synthesis=state["synthesis"],
+        price_section=draft["price_section"],
+        news_section=draft["news_section"],
+        catalysts_section=draft["catalysts_section"],
+        geopolitics_section=draft["geopolitics_section"],
+        revision_notes=sense_check_result["revision_notes"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(Brief)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"draft": result}
+
+
+class FinalBrief(TypedDict):
+    subject: str
+    html_body: str
+    plain_text_body: str
 
 
 def deliver(state: State) -> dict:
     print("-> Deliver")
-    return {}
+    
+    draft = state["draft"]
+    
+    prompt = load_prompt(
+        "deliver",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        synthesis=state["synthesis"],
+        price_section=draft["price_section"],
+        news_section=draft["news_section"],
+        catalysts_section=draft["catalysts_section"],
+        geopolitics_section=draft["geopolitics_section"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(FinalBrief)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"final_brief": result}

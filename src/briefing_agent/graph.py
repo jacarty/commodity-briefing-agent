@@ -16,8 +16,9 @@ def route_after_cross_check(state: State) -> str:
 def route_after_sense_check(state: State) -> str:
     if state["sense_check_result"]["passed"]:
         return "passed"
-    else:
-        return "failed"
+    if state["sense_check_attempts"] >= 2:
+        return "passed"
+    return "failed"
 
 def make_graph():
     graph_builder = StateGraph(State)

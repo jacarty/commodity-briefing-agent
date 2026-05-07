@@ -20,6 +20,7 @@ def run():
     print(result.get("synthesis"))
     print(result.get("cross_check_result"))
     print(result.get("draft"))
+    print(result.get("final_brief"))
 
 if __name__ == "__main__":
     run()
