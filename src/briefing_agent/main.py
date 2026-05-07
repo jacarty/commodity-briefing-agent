@@ -18,6 +18,7 @@ def run():
     print(result.get("catalyst_research"))
     print(result.get("geo_research"))
     print(result.get("synthesis"))
+    print(result.get("cross_check_result"))
 
 if __name__ == "__main__":
     run()

@@ -187,9 +187,44 @@ def synthesise(state: State) -> dict:
     
     return {"synthesis": result}
 
+ResearchStream = Literal["price", "news", "catalysts", "geopolitics"]
+
+class CrossCheckResult(TypedDict):
+    passed: bool
+    consistency_issues: list[str]
+    grounding_issues: list[str]
+    calibration_issues: list[str]
+    re_research_targets: list[ResearchStream]
+    summary: str
+    
+
 def cross_check(state: State) -> dict:
     print("-> Cross-check")
-    return {"cross_check_result": {"passed": True}, "cross_check_attempts": state.get("cross_check_attempts", 0) + 1}
+    
+    prompt = load_prompt(
+        "cross_check",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        synthesis=state["synthesis"],
+        price_research=state["price_research"],
+        news_research=state["news_research"],
+        catalyst_research=state["catalyst_research"],
+        geo_research=state["geo_research"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(CrossCheckResult)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    print(f"   passed: {result['passed']}")
+    if not result["passed"]:
+        print(f"   issues: consistency={result['consistency_issues']}, calibration={result['calibration_issues']}, grounding={result['grounding_issues']}")
+        print(f"   re_research_targets: {result['re_research_targets']}")
+
+    return {
+        "cross_check_result": result,
+        "cross_check_attempts": state.get("cross_check_attempts", 0) + 1,
+        "re_research_targets": result["re_research_targets"],
+    }
 
 def re_research(state: State) -> dict:
     print("-> Re-research")
