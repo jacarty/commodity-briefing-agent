@@ -119,9 +119,45 @@ def research_catalysts(state: State) -> dict:
     
     return {"catalyst_research": result}
 
+class GeopoliticalTheme(TypedDict):
+    theme: str                    # e.g., "Strait of Hormuz transit risk"
+    summary: str                  # 1-2 sentences on the current state
+    impact_direction: Literal["bullish", "bearish", "ambiguous"]
+    timeframe: Literal["near_term", "medium_term", "long_term"]
+    confidence: Literal["high", "medium", "low"]
+
+
+class GeopoliticalResearch(TypedDict):
+    themes: list[GeopoliticalTheme]
+
+
 def research_geo(state: State) -> dict:
     print("-> Research Geopolitics")
-    return {}
+    
+    target_date = state["target_date"]
+    commodity = state["commodity"]
+    instructions = state["research_plan"]["geopolitics"]
+    
+    prompt = load_prompt(
+        "geopolitics",
+        target_date=target_date,
+        commodity=commodity,
+        instructions=instructions,
+    )
+    
+    web_search_tool = {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 4,
+    }
+    
+    model = ChatAnthropic(
+        model="claude-haiku-4-5",
+    ).bind_tools([web_search_tool]).with_structured_output(GeopoliticalResearch)
+    
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"geo_research": result}
 
 def synthesise(state: State) -> dict:
     print("-> Synthesise")
