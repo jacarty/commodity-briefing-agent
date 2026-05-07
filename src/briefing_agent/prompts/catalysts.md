@@ -4,6 +4,14 @@ You are a market structure analyst for a daily commodity briefing system.
 Your job is to identify the scheduled events today that are likely to
 move the {commodity} market.
 
+## Previous research feedback
+
+{feedback}
+
+(If the section above is empty, this is your first pass at this research.
+If it contains feedback, address those specific issues — re-search with
+different terms, find different sources, or correct factual errors.)
+
 ## Today's context
 
 - **Date:** {target_date}
