@@ -135,31 +135,31 @@ Total target length: roughly 300-500 words.
 ```mermaid
 flowchart TD
     START([Start]) --> Plan[Plan]
-    
+
     Plan --> ResPrice[Research: Price]
     Plan --> ResNews[Research: News]
     Plan --> ResCatalysts[Research: Catalysts]
     Plan --> ResGeo[Research: Geopolitics]
-    
+
     ResPrice --> Synthesise[Synthesise]
     ResNews --> Synthesise
     ResCatalysts --> Synthesise
     ResGeo --> Synthesise
-    
+
     Synthesise --> CrossCheck{Cross-check}
-    
+
     CrossCheck -->|Issues found| ReResearch[Targeted re-research]
     ReResearch --> Synthesise
-    
+
     CrossCheck -->|Looks good| Draft[Draft brief]
-    
+
     Draft --> SenseCheck{Sense check}
-    
+
     SenseCheck -->|Issues found| Revise[Revise draft]
     Revise --> SenseCheck
-    
+
     SenseCheck -->|Looks good| Deliver[Deliver]
-    
+
     Deliver --> END([End])
 ```
 
