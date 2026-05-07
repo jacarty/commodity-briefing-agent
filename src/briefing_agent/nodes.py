@@ -159,9 +159,33 @@ def research_geo(state: State) -> dict:
     
     return {"geo_research": result}
 
+class Synthesis(TypedDict):
+    dominant_narrative: str
+    price_interpretation: str
+    cross_stream_signals: str
+    risks_to_view: str
+    headline_metrics: list[str]
+
+
 def synthesise(state: State) -> dict:
     print("-> Synthesise")
-    return {}
+    
+    prompt = load_prompt(
+        "synthesise",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        briefing_spec=state["briefing_spec"],
+        research_plan=state["research_plan"],
+        price_research=state["price_research"],
+        news_research=state["news_research"],
+        catalyst_research=state["catalyst_research"],
+        geo_research=state["geo_research"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(Synthesis)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"synthesis": result}
 
 def cross_check(state: State) -> dict:
     print("-> Cross-check")
