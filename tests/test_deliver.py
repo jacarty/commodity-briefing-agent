@@ -47,10 +47,10 @@ def _sample_state_with_brief():
 
 def test_deliver_returns_final_brief_shape():
     result = deliver(_sample_state_with_brief())
-    
+
     assert "final_brief" in result
     fb = result["final_brief"]
-    
+
     expected_fields = {"subject", "html_body", "plain_text_body"}
     assert set(fb.keys()) == expected_fields
 
@@ -58,7 +58,7 @@ def test_deliver_returns_final_brief_shape():
 def test_deliver_subject_is_reasonable_length():
     """Subject should be a single line, not too long for inbox preview."""
     result = deliver(_sample_state_with_brief())
-    
+
     subject = result["final_brief"]["subject"]
     assert isinstance(subject, str)
     assert "\n" not in subject
@@ -69,7 +69,7 @@ def test_deliver_html_contains_section_structure():
     """HTML should have h2 tags for each section."""
     result = deliver(_sample_state_with_brief())
     html = result["final_brief"]["html_body"]
-    
+
     # Should have section headers (case-insensitive)
     assert "<h2" in html.lower()
     # All four sections should be represented
@@ -81,7 +81,7 @@ def test_deliver_plain_text_is_readable():
     """Plain text should be present and structured."""
     result = deliver(_sample_state_with_brief())
     plain = result["final_brief"]["plain_text_body"]
-    
+
     assert isinstance(plain, str)
     assert len(plain) > 200  # actual content, not a stub
     # Should reference the four sections somehow

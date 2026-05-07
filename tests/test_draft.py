@@ -40,13 +40,15 @@ def _sample_state_with_synthesis():
 
 def test_draft_returns_brief_shape():
     result = draft(_sample_state_with_synthesis())
-    
+
     assert "draft" in result
     brief = result["draft"]
-    
+
     expected_fields = {
-        "price_section", "news_section",
-        "catalysts_section", "geopolitics_section",
+        "price_section",
+        "news_section",
+        "catalysts_section",
+        "geopolitics_section",
     }
     assert set(brief.keys()) == expected_fields
 
@@ -54,9 +56,8 @@ def test_draft_returns_brief_shape():
 def test_draft_sections_are_non_empty_strings():
     result = draft(_sample_state_with_synthesis())
     brief = result["draft"]
-    
-    for section in ["price_section", "news_section",
-                    "catalysts_section", "geopolitics_section"]:
+
+    for section in ["price_section", "news_section", "catalysts_section", "geopolitics_section"]:
         assert isinstance(brief[section], str)
         assert len(brief[section]) > 100  # actual prose, not a one-liner
 
@@ -65,14 +66,16 @@ def test_draft_includes_metrics_somewhere():
     """Headline metrics from synthesis should appear in the brief somewhere."""
     result = draft(_sample_state_with_synthesis())
     brief = result["draft"]
-    
-    full_brief = " ".join([
-        brief["price_section"],
-        brief["news_section"],
-        brief["catalysts_section"],
-        brief["geopolitics_section"],
-    ])
-    
+
+    full_brief = " ".join(
+        [
+            brief["price_section"],
+            brief["news_section"],
+            brief["catalysts_section"],
+            brief["geopolitics_section"],
+        ]
+    )
+
     # At minimum, the most distinctive number should appear somewhere.
     # 4.5% is the most specific, distinctive metric in the sample.
     assert "4.5" in full_brief or "4.5%" in full_brief

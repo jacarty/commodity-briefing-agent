@@ -2,7 +2,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from briefing_agent.graph import make_graph
+from briefing_agent.graph import make_graph  # noqa: E402
+
 
 def run():
     graph = make_graph()
@@ -21,6 +22,7 @@ def run():
     print(result.get("cross_check_result"))
     print(result.get("draft"))
     print(result.get("final_brief"))
+
 
 if __name__ == "__main__":
     run()

@@ -56,13 +56,16 @@ def _sample_state():
 
 def test_synthesise_returns_synthesis_shape():
     result = synthesise(_sample_state())
-    
+
     assert "synthesis" in result
     syn = result["synthesis"]
-    
+
     expected_fields = {
-        "dominant_narrative", "price_interpretation",
-        "cross_stream_signals", "risks_to_view", "headline_metrics",
+        "dominant_narrative",
+        "price_interpretation",
+        "cross_stream_signals",
+        "risks_to_view",
+        "headline_metrics",
     }
     assert set(syn.keys()) == expected_fields
 
@@ -70,9 +73,13 @@ def test_synthesise_returns_synthesis_shape():
 def test_synthesise_string_fields_are_strings():
     result = synthesise(_sample_state())
     syn = result["synthesis"]
-    
-    for field in ["dominant_narrative", "price_interpretation",
-                  "cross_stream_signals", "risks_to_view"]:
+
+    for field in [
+        "dominant_narrative",
+        "price_interpretation",
+        "cross_stream_signals",
+        "risks_to_view",
+    ]:
         assert isinstance(syn[field], str)
         assert len(syn[field]) > 0  # not empty
 
@@ -80,7 +87,7 @@ def test_synthesise_string_fields_are_strings():
 def test_synthesise_headline_metrics_is_list_of_strings():
     result = synthesise(_sample_state())
     syn = result["synthesis"]
-    
+
     assert isinstance(syn["headline_metrics"], list)
     assert all(isinstance(m, str) for m in syn["headline_metrics"])
     assert len(syn["headline_metrics"]) >= 1

@@ -1,4 +1,4 @@
-from briefing_agent.nodes import re_research, _format_feedback
+from briefing_agent.nodes import _format_feedback, re_research
 
 
 def test_re_research_with_no_targets_returns_empty():

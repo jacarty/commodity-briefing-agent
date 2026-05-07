@@ -1,10 +1,21 @@
-from langgraph.graph import StateGraph, START, END
-from briefing_agent.state import State
+from langgraph.graph import END, START, StateGraph
+
 from briefing_agent.nodes import (
-    plan, research_price, research_news, research_catalysts, research_geo,
-    synthesise, cross_check, re_research,
-    draft, sense_check, revise, deliver,
+    cross_check,
+    deliver,
+    draft,
+    plan,
+    re_research,
+    research_catalysts,
+    research_geo,
+    research_news,
+    research_price,
+    revise,
+    sense_check,
+    synthesise,
 )
+from briefing_agent.state import State
+
 
 def route_after_cross_check(state: State) -> str:
     if state["cross_check_result"]["passed"]:
@@ -13,6 +24,7 @@ def route_after_cross_check(state: State) -> str:
         return "passed"
     return "failed"
 
+
 def route_after_sense_check(state: State) -> str:
     if state["sense_check_result"]["passed"]:
         return "passed"
@@ -20,9 +32,10 @@ def route_after_sense_check(state: State) -> str:
         return "passed"
     return "failed"
 
+
 def make_graph():
     graph_builder = StateGraph(State)
-    
+
     # Add nodes
     graph_builder.add_node("plan", plan)
     graph_builder.add_node("research_price", research_price)
@@ -36,7 +49,7 @@ def make_graph():
     graph_builder.add_node("sense_check", sense_check)
     graph_builder.add_node("revise", revise)
     graph_builder.add_node("deliver", deliver)
-    
+
     # Add edges
     graph_builder.add_edge(START, "plan")
     graph_builder.add_edge("plan", "research_price")

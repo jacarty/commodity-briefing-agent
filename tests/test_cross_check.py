@@ -64,34 +64,38 @@ def _sample_state_with_synthesis():
 
 def test_cross_check_returns_required_shape():
     result = cross_check(_sample_state_with_synthesis())
-    
+
     assert "cross_check_result" in result
     assert "cross_check_attempts" in result
     assert "re_research_targets" in result
-    
+
     cc = result["cross_check_result"]
     expected_fields = {
-        "passed", "consistency_issues", "calibration_issues",
-        "grounding_issues", "re_research_targets", "summary",
+        "passed",
+        "consistency_issues",
+        "calibration_issues",
+        "grounding_issues",
+        "re_research_targets",
+        "summary",
     }
     assert set(cc.keys()) == expected_fields
 
 
 def test_cross_check_increments_attempts():
     result = cross_check(_sample_state_with_synthesis())
-    
+
     assert result["cross_check_attempts"] == 1
 
 
 def test_cross_check_passed_is_boolean():
     result = cross_check(_sample_state_with_synthesis())
-    
+
     assert isinstance(result["cross_check_result"]["passed"], bool)
 
 
 def test_cross_check_re_research_targets_are_valid_streams():
     result = cross_check(_sample_state_with_synthesis())
-    
+
     valid_streams = {"price", "news", "catalysts", "geopolitics"}
     for target in result["cross_check_result"]["re_research_targets"]:
         assert target in valid_streams

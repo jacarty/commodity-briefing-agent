@@ -102,8 +102,8 @@ Cases where synthesis confidence doesn't match research confidence:
   the synthesis.
 - **You don't have to find issues.** A clean synthesis with empty
   issue lists is the right output most days.
-- **A few minor issues is okay**A synthesis with one or two minor issues 
-  should pass with notes, not fail. Only fail when issues are material 
+- **A few minor issues is okay**A synthesis with one or two minor issues
+  should pass with notes, not fail. Only fail when issues are material
   enough that thebrief would mislead the reader without revision.
 - **The bar for failure is** "would a competent reader of this synthesis
   reach a wrong conclusion?" Not "could this be phrased better?"

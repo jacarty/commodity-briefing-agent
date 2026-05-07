@@ -1,5 +1,5 @@
-from typing import TypedDict, Annotated
 from operator import add
+from typing import Annotated, TypedDict
 
 
 class State(TypedDict):

@@ -67,31 +67,36 @@ def _sample_state_with_brief():
 
 def test_sense_check_returns_required_shape():
     result = sense_check(_sample_state_with_brief())
-    
+
     assert "sense_check_result" in result
     assert "sense_check_attempts" in result
-    
+
     sc = result["sense_check_result"]
     expected_fields = {
-        "passed", "faithfulness_issues", "structure_issues",
-        "prose_issues", "consistency_issues", "revision_notes", "summary",
+        "passed",
+        "faithfulness_issues",
+        "structure_issues",
+        "prose_issues",
+        "consistency_issues",
+        "revision_notes",
+        "summary",
     }
     assert set(sc.keys()) == expected_fields
 
 
 def test_sense_check_increments_attempts():
     result = sense_check(_sample_state_with_brief())
-    
+
     assert result["sense_check_attempts"] == 1
 
 
 def test_sense_check_passed_is_boolean():
     result = sense_check(_sample_state_with_brief())
-    
+
     assert isinstance(result["sense_check_result"]["passed"], bool)
 
 
 def test_sense_check_revision_notes_is_string():
     result = sense_check(_sample_state_with_brief())
-    
+
     assert isinstance(result["sense_check_result"]["revision_notes"], str)
