@@ -12,6 +12,7 @@ class ResearchPlan(TypedDict):
     catalysts: str
     geopolitics: str
 
+
 def plan(state: State) -> dict:
     print("-> Plan")
     target_date = state["target_date"]
@@ -26,6 +27,7 @@ def plan(state: State) -> dict:
     
     return {"research_plan": response}
 
+
 def research_price(state: State) -> dict:
     print("-> Research Price")
     
@@ -34,6 +36,7 @@ def research_price(state: State) -> dict:
     price_data = source.fetch(symbol)
     
     return {"price_research": price_data}
+
 
 class NewsItem(TypedDict):
     headline: str
@@ -54,12 +57,14 @@ def research_news(state: State) -> dict:
     target_date = state["target_date"]
     commodity = state["commodity"]
     instructions = state["research_plan"]["news"]
+    feedback = state.get("research_feedback", {}).get("news", "")
     
     prompt = load_prompt(
         "news",
         target_date=target_date,
         commodity=commodity,
         instructions=instructions,
+        feedback=feedback,
     )
     
     web_search_tool = {
@@ -77,6 +82,7 @@ def research_news(state: State) -> dict:
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
     
     return {"news_research": result["structured_response"]}
+
 
 class CatalystEvent(TypedDict):
     name: str                    # e.g., "EIA Weekly Petroleum Status Report"
@@ -97,12 +103,14 @@ def research_catalysts(state: State) -> dict:
     target_date = state["target_date"]
     commodity = state["commodity"]
     instructions = state["research_plan"]["catalysts"]
+    feedback = state.get("research_feedback", {}).get("catalysts", "")
     
     prompt = load_prompt(
         "catalysts",
         target_date=target_date,
         commodity=commodity,
         instructions=instructions,
+        feedback=feedback,
     )
     
     web_search_tool = {
@@ -118,6 +126,7 @@ def research_catalysts(state: State) -> dict:
     result = model.invoke([HumanMessage(content=prompt)])
     
     return {"catalyst_research": result}
+
 
 class GeopoliticalTheme(TypedDict):
     theme: str                    # e.g., "Strait of Hormuz transit risk"
@@ -137,12 +146,14 @@ def research_geo(state: State) -> dict:
     target_date = state["target_date"]
     commodity = state["commodity"]
     instructions = state["research_plan"]["geopolitics"]
+    feedback = state.get("research_feedback", {}).get("geopolitics", "")
     
     prompt = load_prompt(
         "geopolitics",
         target_date=target_date,
         commodity=commodity,
         instructions=instructions,
+        feedback=feedback,
     )
     
     web_search_tool = {
@@ -158,6 +169,7 @@ def research_geo(state: State) -> dict:
     result = model.invoke([HumanMessage(content=prompt)])
     
     return {"geo_research": result}
+
 
 class Synthesis(TypedDict):
     dominant_narrative: str
@@ -186,6 +198,7 @@ def synthesise(state: State) -> dict:
     result = model.invoke([HumanMessage(content=prompt)])
     
     return {"synthesis": result}
+
 
 ResearchStream = Literal["price", "news", "catalysts", "geopolitics"]
 
@@ -226,21 +239,73 @@ def cross_check(state: State) -> dict:
         "re_research_targets": result["re_research_targets"],
     }
 
+
+def _format_feedback(stream: str, cross_check_result: dict) -> str:
+    """Build a feedback string for a stream from cross-check's issue lists."""
+    lines = [f"Cross-check flagged the following issues with the {stream} research:\n"]
+    
+    for category in ["consistency_issues", "calibration_issues", "grounding_issues"]:
+        issues = cross_check_result.get(category, [])
+        relevant = [i for i in issues if stream.lower() in i.lower()]
+        if relevant:
+            lines.append(f"\n{category.replace('_', ' ').title()}:")
+            for issue in relevant:
+                lines.append(f"  - {issue}")
+    
+    if len(lines) == 1:  # only the header, no specific issues
+        lines.append(f"\nPlease re-research {stream} with different sources or terms.")
+    
+    return "\n".join(lines)
+
+
 def re_research(state: State) -> dict:
     print("-> Re-research")
-    return {}
+    
+    targets = state.get("re_research_targets", [])
+    cross_check_result = state.get("cross_check_result", {})
+    
+    if not targets:
+        # Nothing to re-research — shouldn't normally happen if router is correct
+        return {}
+    
+    # Build feedback for each target
+    feedback = {
+        target: _format_feedback(target, cross_check_result)
+        for target in targets
+    }
+    
+    # Build a state-with-feedback to pass to the re-running research nodes
+    enriched_state = {**state, "research_feedback": feedback}
+    
+    # Re-run each target's research function
+    updates = {}
+    for target in targets:
+        if target not in RESEARCH_FUNCTIONS:
+            continue  # e.g., "price" is in the enum but we don't re-research it via LLM
+        result = RESEARCH_FUNCTIONS[target](enriched_state)
+        updates.update(result)
+    
+    # Also clear the targets so the next cross-check starts clean
+    updates["re_research_targets"] = []
+    updates["research_feedback"] = feedback  # keep for traceability
+    
+    return updates
+
 
 def draft(state: State) -> dict:
     print("-> Draft")
     return {}
 
+
 def sense_check(state: State) -> dict:
     print("-> Sense-check")
     return {"sense_check_result": {"passed": True}, "sense_check_attempts": state.get("sense_check_attempts", 0) + 1}
 
+
 def revise(state: State) -> dict:
     print("-> Revise")
     return {}
+
 
 def deliver(state: State) -> dict:
     print("-> Deliver")
