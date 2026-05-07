@@ -14,6 +14,7 @@ def run():
     result = graph.invoke(initial_state)
     print(result.get("research_plan"))
     print(result.get("price_research"))
+    print(result.get("news_research"))
 
 if __name__ == "__main__":
     run()

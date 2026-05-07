@@ -1,6 +1,7 @@
-from typing import TypedDict
+from typing import TypedDict, Literal
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
+from langchain.agents import create_agent
 from briefing_agent.state import State
 from briefing_agent.prompts import load_prompt
 from briefing_agent.data_sources.prices import PriceDataSource
@@ -34,9 +35,48 @@ def research_price(state: State) -> dict:
     
     return {"price_research": price_data}
 
+class NewsItem(TypedDict):
+    headline: str
+    source: str
+    url: str
+    why_it_matters: str
+    direction: Literal["supports_trend", "reverses_trend", "neutral"]
+    timeframe: Literal["short_term", "structural"]
+
+
+class NewsResearch(TypedDict):
+    items: list[NewsItem]
+
+
 def research_news(state: State) -> dict:
     print("-> Research News")
-    return {}
+    
+    target_date = state["target_date"]
+    commodity = state["commodity"]
+    instructions = state["research_plan"]["news"]
+    
+    prompt = load_prompt(
+        "news",
+        target_date=target_date,
+        commodity=commodity,
+        instructions=instructions,
+    )
+    
+    web_search_tool = {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 5,
+    }
+    
+    agent = create_agent(
+        model="anthropic:claude-haiku-4-5",
+        tools=[web_search_tool],
+        response_format=NewsResearch,
+    )
+    
+    result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    
+    return {"news_research": result["structured_response"]}
 
 def research_catalysts(state: State) -> dict:
     print("-> Research Catalysts")
