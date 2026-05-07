@@ -15,6 +15,7 @@ def run():
     print(result.get("research_plan"))
     print(result.get("price_research"))
     print(result.get("news_research"))
+    print(result.get("catalyst_research"))
 
 if __name__ == "__main__":
     run()
