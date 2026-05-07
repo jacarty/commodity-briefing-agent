@@ -258,6 +258,12 @@ def _format_feedback(stream: str, cross_check_result: dict) -> str:
     return "\n".join(lines)
 
 
+RESEARCH_FUNCTIONS = {
+    "news": research_news,
+    "catalysts": research_catalysts,
+    "geopolitics": research_geo,
+}
+
 def re_research(state: State) -> dict:
     print("-> Re-research")
     
@@ -292,9 +298,28 @@ def re_research(state: State) -> dict:
     return updates
 
 
+class Brief(TypedDict):
+    price_section: str
+    news_section: str
+    catalysts_section: str
+    geopolitics_section: str
+
+
 def draft(state: State) -> dict:
     print("-> Draft")
-    return {}
+    
+    prompt = load_prompt(
+        "draft",
+        target_date=state["target_date"],
+        commodity=state["commodity"],
+        briefing_spec=state["briefing_spec"],
+        synthesis=state["synthesis"],
+    )
+    
+    model = ChatAnthropic(model="claude-haiku-4-5").with_structured_output(Brief)
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"draft": result}
 
 
 def sense_check(state: State) -> dict:
