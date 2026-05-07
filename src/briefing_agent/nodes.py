@@ -78,9 +78,46 @@ def research_news(state: State) -> dict:
     
     return {"news_research": result["structured_response"]}
 
+class CatalystEvent(TypedDict):
+    name: str                    # e.g., "EIA Weekly Petroleum Status Report"
+    scheduled_time: str          # e.g., "10:30 AM ET" or "after market close"
+    consensus: str               # what the market expects, in plain English
+    surprise_threshold: str      # what would be a surprise, in plain English
+    importance: Literal["high", "medium", "low"]
+    notes: str                   # any context, recent precedent, why this matters
+
+
+class CatalystResearch(TypedDict):
+    events: list[CatalystEvent]
+
+
 def research_catalysts(state: State) -> dict:
     print("-> Research Catalysts")
-    return {}
+    
+    target_date = state["target_date"]
+    commodity = state["commodity"]
+    instructions = state["research_plan"]["catalysts"]
+    
+    prompt = load_prompt(
+        "catalysts",
+        target_date=target_date,
+        commodity=commodity,
+        instructions=instructions,
+    )
+    
+    web_search_tool = {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 3,
+    }
+    
+    model = ChatAnthropic(
+        model="claude-haiku-4-5",
+    ).bind_tools([web_search_tool]).with_structured_output(CatalystResearch)
+    
+    result = model.invoke([HumanMessage(content=prompt)])
+    
+    return {"catalyst_research": result}
 
 def research_geo(state: State) -> dict:
     print("-> Research Geopolitics")
