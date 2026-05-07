@@ -3,6 +3,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
 from briefing_agent.state import State
 from briefing_agent.prompts import load_prompt
+from briefing_agent.data_sources.prices import PriceDataSource
 
 class ResearchPlan(TypedDict):
     price: str
@@ -26,7 +27,12 @@ def plan(state: State) -> dict:
 
 def research_price(state: State) -> dict:
     print("-> Research Price")
-    return {}
+    
+    symbol = "CL=F"  # WTI crude futures, hardcoded for now
+    source = PriceDataSource()
+    price_data = source.fetch(symbol)
+    
+    return {"price_research": price_data}
 
 def research_news(state: State) -> dict:
     print("-> Research News")
