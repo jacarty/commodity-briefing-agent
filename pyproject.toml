@@ -1,0 +1,10 @@
+[project]
+name = "commodity-briefing-agent-tooling"
+version = "0.0.0"
+description = "Project-wide dev tooling for the commodity-briefing-agent monorepo. Each phase has its own pyproject.toml under phaseN-<name>/."
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+]
