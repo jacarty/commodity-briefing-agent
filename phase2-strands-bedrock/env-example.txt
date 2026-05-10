@@ -1,0 +1,18 @@
+# Phase 2 environment variables.
+# Copy this file to .env and fill in the values.
+# .env is gitignored at the repo root.
+
+# AWS SSO profile name. The profile itself is configured via
+# `aws configure sso --profile <name>` and lives in ~/.aws/config.
+# No AWS credentials are stored here — boto3 picks them up from the
+# SSO cache after `aws sso login --profile <name>`.
+AWS_PROFILE=
+
+# AWS region. Phase 2 uses eu-west-1 (Bedrock + AgentCore + Claude
+# Haiku 4.5 all available there).
+AWS_REGION=
+
+# Tavily API key for web search. Get one from https://tavily.com.
+# Replaces Anthropic's server-side web_search_20250305 tool, which
+# is not available on Bedrock.
+TAVILY_API_KEY=
