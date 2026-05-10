@@ -6,8 +6,12 @@ on:
     branches: [main]
 
 jobs:
-  ruff:
+  ruff-phase1:
+    name: ruff (phase1-langgraph)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: phase1-langgraph
     steps:
       - uses: actions/checkout@v4
 

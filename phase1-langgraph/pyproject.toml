@@ -1,0 +1,63 @@
+[project]
+name = "langchain-commodity-briefing-agent"
+version = "0.1.0"
+description = "A daily commodity research agent built with LangGraph, deployed across Anthropic, Bedrock, and Vertex for comparison."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.2.16",
+    "langchain-anthropic>=1.4.2",
+    "langgraph>=1.1.10",
+    "langsmith>=0.7.38",
+    "python-dotenv>=1.2.2",
+    "yfinance>=1.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.15.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/briefing_agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names, etc.)
+    "I",   # isort (import sorting)
+    "B",   # bugbear (common bugs and design issues)
+    "UP",  # pyupgrade (modernise syntax for the target Python version)
+    "C4",  # comprehensions (cleaner list/dict/set comprehensions)
+    "SIM", # simplify (straightforward refactors)
+]
+ignore = [
+    # Add ignores here if specific rules become noisy. Empty for now —
+    # tighten the net first, loosen only when there's a concrete reason.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can have longer lines and unused imports for fixtures.
+"tests/**/*.py" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
