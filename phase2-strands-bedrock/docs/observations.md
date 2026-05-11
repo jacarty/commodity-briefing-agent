@@ -1,165 +1,242 @@
-## 2026-05-11 — draft, sense_check, revise: all tools-less, all clean openings
+## 2026-05-11 — Orchestrator happy-path works end-to-end on first run
 
-**Observed**: All three rendering-layer specialists opened cleanly
-with their structural marker on the first character:
+**Observed**: First end-to-end smoke run of the orchestrator
+completed without intervention. The orchestrator:
 
-- draft: `PRICE SECTION` (no preamble)
-- sense_check: `VERDICT: PASS` / `VERDICT: FAIL` (no preamble)
-- revise: `PRICE SECTION` (no preamble)
+1. Called `fetch_price`
+2. Called `research_news`, `research_catalysts`, `research_geo`
+3. Called `synthesise` with research outputs assembled
+4. Called `cross_check`, got `VERDICT: PASS`, proceeded
+5. Called `draft`
+6. Called `sense_check`, got `VERDICT: PASS`, proceeded
+7. Produced FinalBrief as structured output (3 fields, all populated)
 
-Standing count after PR 4:
+Nine tool calls, no retries, structured output validated. Brief
+is editorially strong (specific numbers, real entities, inverted
+pyramid, no bullets, no internal headers — Phase 1's editorial
+discipline intact end-to-end).
 
-- Tool-equipped specialists: preamble 7/7
-- Tools-less specialists: preamble 0/8 (synthesise, cross_check,
-  draft, sense_check, revise across multiple runs)
+**What we did**: Nothing. Smoke run worked.
 
-15 runs across 8 specialists. The pattern is solid.
+**Implication**: Two STEP-03 open questions answered positively:
 
-**What we did**: Nothing. Hypothesis robust.
+- **Input-string assembly works.** The orchestrator packaged
+  upstream outputs into coherent inputs for synthesise,
+  cross_check, draft, and sense_check. If assembly had been
+  broken, the audits would have failed.
+- **VERDICT line interpretation works.** The orchestrator read
+  `VERDICT: PASS` from both audits and proceeded as designed.
 
-**Implication**: The orchestrator's parser logic finalised:
-
-- The four tool-equipped research specialists need leniency for
-  leading preamble — skip lines until a structural marker.
-- The remaining six specialists (synthesise, cross_check, draft,
-  sense_check, revise, fetch_price-as-tool) can be parsed strictly
-  from the first character.
-
-This is a real architecture-level simplification compared to
-treating all specialists uniformly. Worth carrying into the
-orchestrator design.
-
----
-
-## 2026-05-11 — sense_check pass-bias produces "PASS with notes" (as designed)
-
-**Observed**: sense_check on a clean draft (PASS scenario) returned
-`VERDICT: PASS` but also flagged a minor STRUCTURE issue —
-suggesting that the Xi-Trump summit catalyst could be more
-prominently positioned. The REVISION NOTES section was labelled
-as "Optional tightening only" and offered a specific reordering
-suggestion.
-
-This is exactly the "pass with notes" calibration Phase 1 was
-tuning for. The auditor:
-- Used pass-bias correctly (didn't fail on a stylistic preference)
-- Surfaced a real but minor consideration for downstream awareness
-- Labelled the note explicitly as optional rather than required
-
-**What we did**: Nothing. Working as designed.
-
-**Implication**: The "would a competent reader notice this problem?"
-framing from Phase 1 ports verbatim and produces the right
-calibration in Phase 2. Pass-bias instructions are doing the work
-they need to do, both for cross_check (PR 3) and now for sense_check.
-
-The orchestrator should treat PASS verdicts as proceed-to-deliver
-regardless of optional notes. If we ever want the optional notes
-to feed forward (e.g., to revise as polish), that's a future
-enhancement — for now, PASS = ship.
+The declarative-goal-and-constraints style of orchestrator prompt
+(STEP-03's Q1=b) was sufficient on the first run. No imperative
+recipe needed.
 
 ---
 
-## 2026-05-11 — sense_check detected faithfulness violation with specific localisation
+## 2026-05-11 — Orchestrator dropped "SECTION" from final brief headers
 
-**Observed**: sense_check on a corrupted draft (FAIL scenario)
-returned `VERDICT: FAIL` and:
+**Observed**: The orchestrator's FinalBrief.plain_text_body uses
+the headers `PRICE / NEWS / CATALYSTS / GEOPOLITICS` rather than
+the `PRICE SECTION / NEWS SECTION / CATALYSTS SECTION /
+GEOPOLITICS SECTION` headers that draft and revise produce
+internally.
 
-- Quoted the exact injected sentence
-- Identified which sections of the brief AND of the synthesis it
-  contradicted
-- Wrote actionable REVISION NOTES specifying which sentence to
-  delete and what the section should open with instead
+This is a small formatting choice the orchestrator made when
+repackaging the approved draft into the structured output.
+Probably fine for an end deliverable (the word "SECTION" is more
+useful as an internal-pipeline marker than an end-user header),
+but it's an inconsistency.
 
-This is the second auditor following the same fabrication-injection
-pattern as cross_check (PR 3) and detecting at the same quality
-level — specific quote, specific location, actionable fix.
+**What we did**: Nothing. Logged.
 
-**What we did**: Nothing. Validation of the auditor pattern.
+**Implication**: Two ways to read this:
 
-**Implication**: The fabrication-injection test pattern works
-equally well for both auditors. The pattern — "inject one specific
-known-bad thing, verify the auditor catches it" — is now a
-reusable template for any future auditor we might add.
+- **Acceptable normalisation**: end-user briefs don't need the
+  word "SECTION" in their headers; this is editorial polish the
+  orchestrator added on its own.
+- **Drift to avoid**: the orchestrator should pass the approved
+  brief through verbatim and not normalise headers.
 
-The REVISION NOTES output is genuinely actionable. revise was
-able to use it directly (see next entry).
+The orchestrator prompt currently says *"the FinalBrief renders
+the *approved* brief"* — which could be read either way. Could
+tighten with explicit "preserve the exact section headers as
+they appear in the approved draft" if we wanted strict
+pass-through. For now, fine.
+
+A small thing, worth being aware of for the eventual
+retrospective.
 
 ---
 
-## 2026-05-11 — revise stays targeted (side-by-side comparison confirms)
+## 2026-05-11 — cross_check retry-cap enforcement works under failure
 
-**Observed**: With the updated smoke_revise.py that prints both
-the original draft and the revised brief plus per-section
-similarity ratios, the answer to "did revise stay targeted?" is
-definitively yes:
+**Observed**: Failure-path smoke test with a stubbed cross_check
+that always returns `VERDICT: FAIL`. The orchestrator's tool-call
+trace:
 
 ```
-PRICE SECTION          100.00%   verbatim
-NEWS SECTION           100.00%   verbatim
-CATALYSTS SECTION       93.43%   trivial changes
-GEOPOLITICS SECTION    100.00%   verbatim
+Tool #1:  fetch_price
+Tool #2:  research_news
+Tool #3:  research_catalysts
+Tool #4:  research_geo
+Tool #5:  synthesise
+Tool #6:  cross_check       ← cycle 1, FAIL
+Tool #7:  research_news     ← acted on RE-RESEARCH TARGETS
+Tool #8:  synthesise        ← re-synthesise with new news
+Tool #9:  cross_check       ← cycle 2, FAIL
+Tool #10: draft             ← cap hit, proceeded anyway
+Tool #11: sense_check       ← PASS
+Tool #12: FinalBrief        ← structured output produced
 ```
 
-The NEWS SECTION result is initially counterintuitive — sense_check
-flagged it as the section needing the biggest fix. But it's the
-right answer: sense_check asked revise to *delete* the injected
-opening sentence and *open with* a specific sentence ("Trump's
-rejection of Iran peace talks is the day's consequential story...").
-That sentence was *already* the opening of the original
-(uncorrupted) draft. The corruption was a prepend; revise removed
-exactly what was prepended. Net result: identical to original.
+The orchestrator stopped at exactly 2 cross_check cycles and
+proceeded to Phase 2 with the latest synthesis. From the
+streamed narration:
 
-The CATALYSTS SECTION 93.43% reflects the secondary fix sense_check
-asked for — rewording one sentence about frontrunning risk to be
-sharper. One sentence changed in one section, exactly as instructed.
+> *"I've now reached my retry cap for cross_check (2 cycles
+> maximum). The second cross_check has failed, so per workflow
+> rules, I must proceed to Phase 2 with the best synthesis
+> available. I'll now draft the four-section briefing."*
 
-**What we did**: Nothing. Validation.
+**What we did**: Nothing. Smoke run validated the design.
 
-**Implication**: STEP-03's open question — *"If revise fires but
-produces fresh drafts instead of targeted fixes, the prompt isn't
-holding the distinction"* — answered. The prompt's bolded
-*"targeted revision, not a rewrite"* instruction is sufficient.
-Phase 1's lesson ports unchanged.
+**Implication**: Three design decisions validated by this run:
 
-**Methodological note**: My previous interpretation of an earlier
-smoke run (which suggested revise was drifting toward broader
-rewriting) was based on comparing the revised brief against memory
-of a different chain run's draft. That's not a valid comparison —
-different chain runs produce different drafts, all reasonable.
-The corrected smoke test compares within a single chain run and
-gives the definitive answer.
-
-Lesson: when assessing "did this specialist preserve unchanged
-content," always compare against the *same run's* upstream output,
-never against memory of previous runs.
+1. **Retry-cap enforcement works in prose.** The model counts
+   tool-call cycles from its own conversation history and stops
+   at the named limit.
+2. **Cap-fallback behaviour works.** *"Proceed to Phase 2 anyway
+   with the best synthesis available"* — the model followed this
+   instruction precisely, didn't get stuck waiting for an audit
+   that would never pass.
+3. **Selective re-research works.** The orchestrator read
+   `RE-RESEARCH TARGETS: news` from the cross_check output and
+   re-ran only `research_news` in cycle 2, preserving the other
+   research streams. Cost-conscious behaviour working as
+   intended.
 
 ---
 
-## 2026-05-11 — smoke test design: in-run side-by-side comparison required for any "did it preserve content?" question
+## 2026-05-11 — sense_check retry-cap enforcement works under failure (and the model reasons about the test)
 
-**Observed**: The first version of smoke_revise.py couldn't answer
-"did revise stay targeted?" without manual comparison against
-memory or a prior run. The updated version prints both the
-original draft and the revised brief from the *same chain run*
-plus per-section similarity ratios via difflib.SequenceMatcher.
+**Observed**: Failure-path smoke test with a stubbed sense_check
+that always returns `VERDICT: FAIL`. The orchestrator's
+tool-call trace:
 
-This makes the targeted-revision verdict mechanical: each
-section gets a similarity ratio in [0, 1] with a categorical
-verdict (`verbatim` ≥ 0.98, `trivial changes` ≥ 0.85, `partial
-rewrite` ≥ 0.50, `substantial rewrite` < 0.50). The thresholds
-are eyeball-calibrated heuristics but worked first try.
+```
+Tool #1:  fetch_price
+Tool #2:  research_news
+Tool #3:  research_catalysts
+Tool #4:  research_geo
+Tool #5:  synthesise
+Tool #6:  cross_check          ← real, PASS
+Tool #7:  draft
+Tool #8:  sense_check          ← cycle 1, stubbed FAIL
+Tool #9:  revise               ← acted on stub's generic notes
+Tool #10: sense_check          ← cycle 2, stubbed FAIL
+Tool #11: FinalBrief           ← cap hit, proceeded
+```
 
-**What we did**: Updated the smoke test. Re-ran. Got definitive
-answer.
+The orchestrator stopped at exactly 2 sense_check cycles. revise
+was called between the two failed audits, so the orchestrator
+attempted the fix before giving up — didn't just count to 2 and
+stop.
 
-**Implication**: This pattern — in-run side-by-side comparison
-with similarity ratios — is the right shape for any future
-smoke test that asks "did the specialist preserve content it
-wasn't asked to change?" Future revise-shaped specialists (if
-any) should use the same pattern. Worth noting in the eventual
-STEP retrospective as a reusable smoke-test technique.
+**The more interesting observation**: the orchestrator
+*recognised the stub for what it was*. From its narration:
 
-The difflib stdlib is sufficient — no need for external diff
-libraries. SequenceMatcher.ratio() is fast enough for full-text
-section comparisons at our scale.
+> *"The sense_check is returning a test stub that always fails
+> (as noted in the output). This is a cap-testing scenario. I've
+> now run two sense_check cycles (initial draft failed, revision
+> failed), which is the maximum allowed. Per the rules, I must
+> accept the current draft and proceed to final output."*
+
+The stub's response contains the phrase *"Test stub: this
+auditor always returns FAIL to exercise the orchestrator's
+retry-cap logic"* — the model read this, inferred the test
+scenario, and explicitly named what was happening before
+proceeding correctly. Reasoning about the situation, not just
+mechanical execution.
+
+**What we did**: Nothing. Smoke run validated the design.
+
+**Implication**: Both retry loops use the same prompt-only
+mechanism and both work under genuine failure conditions. The
+orchestrator's behaviour generalises across the two loops; we
+didn't just get lucky on cross_check.
+
+Also: revise applied generic stub notes successfully. The stub's
+REVISION NOTES were deliberately vague ("Tighten the news
+section's opening to lead more directly with the synthesis's
+identified dominant narrative...") because the stub doesn't see
+the draft. revise produced a real change against this guidance.
+Useful to know that revise can act on general feedback as well
+as on specific quoted-text feedback.
+
+---
+
+## 2026-05-11 — Both retry loops validated; text-native bet comprehensively closed
+
+**Observed**: After the two failure-path smoke tests
+(cross_check stub, sense_check stub), both of the orchestrator's
+retry loops are independently validated:
+
+| Retry loop | Mechanism | Cap held? | Fallback worked? |
+|---|---|---|---|
+| cross_check | prose-only, declarative prompt | ✅ yes (2 cycles) | ✅ proceeded with best synthesis |
+| sense_check | prose-only, declarative prompt | ✅ yes (2 cycles) | ✅ proceeded with revised draft |
+
+The text-native bet from STEP-03 — including its riskiest
+component, prompt-only retry-cap enforcement — has now been
+comprehensively validated. The hybrid fallback ("hybrid where
+quality forces it") has never been needed at any layer of the
+agent.
+
+**What we did**: Nothing. This is the standing assessment.
+
+**Implication**: The Phase 2 build is feature-complete and design-
+complete. No outstanding open questions from STEP-03; no known
+failure modes that need addressing. The orchestrator handles:
+
+- Happy path (both audits pass) → 9 specialist calls
+- cross_check failure → re-research, re-synthesise, retry cap,
+  fall back to Phase 2
+- sense_check failure → revise, retry cap, fall back to Phase 3
+
+What's left for Phase 2 is documentation (STEP-07 retrospective,
+PR notes, Phase 2 retrospective), not code.
+
+---
+
+## 2026-05-11 — All five STEP-03 open questions formally closed
+
+After PR 5 (orchestrator + both failure-path tests), all of
+STEP-03's named "things we'll be watching for" are answered:
+
+| STEP-03 open question | PR | Result |
+|---|---|---|
+| CROSS-STREAM SIGNALS reliably produced | PR 3 | ✅ closed positive |
+| VERDICT line interpreted correctly | PR 3, 4 | ✅ closed positive |
+| revise stays distinct from draft | PR 4 | ✅ closed positive |
+| Retry-cap enforcement from prose alone | PR 5 (cross_check) | ✅ closed positive |
+| Retry-cap enforcement from prose alone | PR 5 (sense_check) | ✅ closed positive |
+| Orchestrator manages input-string assembly | PR 5 | ✅ closed positive |
+
+Six checks, six positive closures. The text-native design from
+STEP-03 has held under every test. The orchestrator's prompt
+length is a real cost (it's the longest prompt in the project),
+but its enforcement is robust.
+
+**What we did**: Updated the standing assessment.
+
+**Implication**: Phase 2 has produced strong evidence that
+agents-as-tools with declarative orchestrator prompts can encode
+non-trivial workflow logic — including retry caps and selective
+re-execution — without resorting to structured state or
+programmatic safety nets. The orchestrator's prompt is the
+specification; the model is the executor.
+
+This is a meaningful result for the eventual Phase 1 vs Phase 2
+comparison: Phase 1 encoded workflow as graph topology and state
+plumbing; Phase 2 encoded it as prose. Both work. The interesting
+question for the retrospective is what the tradeoffs are.
