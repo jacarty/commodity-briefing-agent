@@ -90,13 +90,20 @@ gcloud services enable aiplatform.googleapis.com
 
 # Set up Application Default Credentials
 gcloud auth application-default login
+
+# Bind ADC to a quota project so API calls bill against carty-470812
+gcloud auth application-default set-quota-project carty-470812
 ```
 
 The `gcloud auth application-default login` step opens a browser,
 authenticates your user, and writes credentials to
-`~/.config/gcloud/application_default_credentials.json`. ADK
-reads these automatically via the underlying `google-genai`
-library — no further config needed in code.
+`~/.config/gcloud/application_default_credentials.json`.
+
+The `set-quota-project` step is required — without it, ADC works
+but `google-auth` emits a UserWarning on every API call about
+missing quota project, and calls may not bill against the
+expected project. Adding the quota project once binds it
+permanently for ADC.
 
 ### 4. Create the `.env` file
 

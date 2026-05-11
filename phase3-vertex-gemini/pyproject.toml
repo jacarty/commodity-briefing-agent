@@ -5,7 +5,10 @@ description = "Phase 3 — Commodity briefing agent on Vertex AI Agent Engine wi
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "google-adk",
+    # Pinned after STEP-02 verify_setup.py passed. Bump manually after
+    # validating against a fresh smoke run.
+    "google-adk==1.33.0",
+    "google-genai==1.75.0",
     "python-dotenv>=1.0,<2.0",
     "pydantic>=2.0,<3.0",
 ]
