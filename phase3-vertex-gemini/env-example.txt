@@ -1,0 +1,7 @@
+# Vertex AI configuration
+# Copy this file to .env and adjust as needed.
+# .env is gitignored.
+
+GOOGLE_CLOUD_PROJECT=
+GOOGLE_CLOUD_LOCATION=
+GOOGLE_GENAI_USE_VERTEXAI=
