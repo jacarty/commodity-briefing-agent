@@ -266,3 +266,192 @@ no surprises.
 proven across all three phases. The PriceSnapshot data shape is
 the stable contract; only the wrapping (class, @tool, plain
 function) changes per phase.
+
+## 2026-05-12 — Prompt-port-verbatim hypothesis holds for catalysts and geopolitics
+
+**Observed**: Both `catalysts.md` and `geopolitics.md` ported
+verbatim from Phase 2 and produced format-compliant output on
+first run:
+
+- Catalysts: 7 EVENT blocks, all six required fields, correct
+  Importance values (high/medium/low)
+- Geopolitics: 5 THEME blocks, all five required fields, correct
+  Impact direction / Timeframe / Confidence values, distinct
+  themes (no overlap)
+
+**What we did**: Nothing — prompts didn't need adjustment.
+
+**Implication**: Three out of three research-layer prompts have
+now ported verbatim. The hypothesis is solidly established for
+research specialists. PRs 3 and 4 (synthesise, cross_check, draft,
+sense_check, revise) should be assumed to follow the same pattern;
+any specialist whose prompt DOESN'T port verbatim is the surprise
+worth investigating.
+
+---
+
+## 2026-05-12 — Catalysts prompt has no item cap; Gemini returned 7 events
+
+**Observed**: The catalysts prompt (unlike news.md's "Aim for
+3-5 items") has no explicit cap on event count. Gemini returned
+7 events. The first 4-5 were directly oil-relevant (CPI, API
+inventory, two oil major earnings); events 5-7 were tangential
+macro (two Fed speakers, BoJ summary).
+
+The Phase 2 prompt had the same lack of cap and presumably the
+same behaviour — but Phase 2's catalysts smoke logs aren't here
+to compare.
+
+**What we did**: Nothing. Logged.
+
+**Implication**: Considering adding a soft cap to catalysts.md
+("Aim for 3-6 events") in a future revision. Deferred because:
+1. The downstream synthesis layer (PR 3) may handle long event
+   lists fine
+2. Changing the prompt mid-port-validation muddies the cross-
+   phase comparison
+3. Other prompt revisions may emerge from PRs 3-5; better to
+   batch any prompt tuning at the end
+
+Worth revisiting after PR 5 once we see how the orchestrator
+consumes catalysts output.
+
+---
+
+## 2026-05-12 — ParallelAgent genuinely parallelises; 3 streams in single-stream time
+
+**Observed**: `smoke_research_parallel` completed in 18.2 seconds
+running three sub-agents concurrently. For comparison, each
+individual specialist smoke ran in roughly 20-40 seconds
+standalone.
+
+The three sub-agents are: news (with google_search), catalysts
+(with google_search), geo (with google_search). All three doing
+real search-grounded research. Total wall-clock under 20 seconds
+for the combined research stage.
+
+**What we did**: Nothing — validation. This was the most important
+STEP-03 architectural assumption to verify.
+
+**Implication**: The "parallel research" stage is essentially free
+on latency vs running one specialist. The cost is purely token
+spend (three concurrent specialists = three sets of search +
+synthesis tokens). For the eventual orchestrator (PR 5), parallel
+research is the right pattern — no reason to fall back to
+sequential research.
+
+This is a meaningful Phase 3 win vs Phase 2. Phase 2's
+orchestrator ran the three research specialists sequentially
+through its tool-call loop. Phase 3 can do them all at once
+because ADK has a first-class primitive for it.
+
+---
+
+## 2026-05-12 — Workflow agent event stream is coarse; intermediate events stay inside sub-agent branches
+
+**Observed**: `smoke_research_parallel` produced exactly 3 events
+from the top-level Runner's perspective — one per sub-agent. No
+intermediate tool-call events, no sub-agent reasoning events.
+Just three "specialist finished" notifications.
+
+Each sub-agent presumably emitted many internal events
+(tool-call requests, tool responses, intermediate model
+generations) but those stay inside the sub-agent's
+InvocationContext branch and don't propagate up to the
+ParallelAgent's external event stream.
+
+**What we did**: Nothing — observed and logged.
+
+**Implication**: Two consequences:
+
+1. **Orchestrator design (PR 5) gets simpler.** The orchestrator
+   doesn't need to handle interleaved events from three
+   concurrent specialists — it just waits for the ParallelAgent
+   to finish, then reads three state keys.
+
+2. **Observability is coarser than Phase 2's.** In Phase 2, the
+   orchestrator saw every tool call from every specialist
+   because everything ran sequentially through one agent's
+   event stream. In Phase 3, per-specialist visibility requires
+   either:
+   - Inspecting per-branch session state (which is what we did
+     in the smoke)
+   - Wiring up ADK callbacks (`before_model_callback`,
+     `after_tool_callback`) on each specialist for finer-grained
+     tracing
+   - Using Cloud Trace (deferred per STEP-03)
+
+Worth a section in the Phase 3 retrospective: ADK's workflow
+agents trade observability for execution efficiency. For
+production, you'd want callback-based tracing or Cloud Trace.
+
+---
+
+## 2026-05-12 — Generic parallel user message produced terser per-stream output
+
+**Observed**: Comparing standalone smoke output vs parallel-smoke
+output for the same specialists:
+
+- News: 5 items standalone, 4 items parallel
+- Geo: 5 themes standalone, 4 themes parallel
+
+The user message differed:
+- Standalone (news): "Find the most important oil-related news
+  from the last 24 hours for today's briefing."
+- Parallel: "Conduct full research across news, catalysts, and
+  geopolitics."
+
+The system prompt (which says what each specialist produces) was
+identical in both cases. The user message in the parallel case
+was generic — and each specialist produced slightly less.
+
+**What we did**: Logged. Will revisit in PR 5 orchestrator design.
+
+**Implication**: For PR 5 orchestrator, the user message that
+seeds the parallel stage can't reasonably be tailored per
+specialist (ParallelAgent forwards one message to all sub-agents).
+Three response options:
+
+1. **Strengthen the prompts** so the system prompt alone drives
+   output regardless of user-message generality. Lean toward
+   this — matches the "editorial discipline lives in prompts"
+   principle from Phase 2's retrospective.
+
+2. **Sequential invocation** of each specialist with tailored
+   user messages. Defeats the latency win — back to 3× time.
+
+3. **Pre-stage prep** writes per-specialist context to session
+   state. Specialists read from state. More plumbing, but
+   preserves tailored context.
+
+Recommendation: try (1) first in PR 5. If output quality drops
+below standalone baseline, fall back to (3).
+
+---
+
+## 2026-05-12 — `session_service.get_session(...).state` pattern works cleanly for state inspection
+
+**Observed**: After a workflow run, fetching the completed
+session via the session service and reading `state[output_key]`
+returned the populated output for each sub-agent. Three keys
+populated, none missing:
+
+```python
+completed = await session_service.get_session(
+    app_name=APP_NAME,
+    user_id=USER_ID,
+    session_id=session.id,
+)
+news = completed.state.get("news_research")
+catalysts = completed.state.get("catalysts_research")
+geo = completed.state.get("geo_research")
+```
+
+**What we did**: Pattern used in the parallel smoke; works
+reliably.
+
+**Implication**: This is the canonical way to introspect ADK
+workflow output. PR 3 and PR 4 smoke tests can reuse this
+pattern when testing LoopAgent stages. The orchestrator (PR 5)
+will access state via `ctx.session.state[key]` from inside the
+`_run_async_impl` method — same data, different access path.
