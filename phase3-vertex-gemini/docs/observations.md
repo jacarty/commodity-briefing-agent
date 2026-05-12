@@ -455,3 +455,207 @@ workflow output. PR 3 and PR 4 smoke tests can reuse this
 pattern when testing LoopAgent stages. The orchestrator (PR 5)
 will access state via `ctx.session.state[key]` from inside the
 `_run_async_impl` method — same data, different access path.
+
+## 2026-05-12 — Prompt-port-verbatim hypothesis holds for synthesise and cross_check (with minor adaptation)
+
+**Observed**: `synthesise.md` ported character-for-character from
+Phase 2 and produced format-compliant output on first run — all
+five mandatory section headers in order, no preamble, no closing
+commentary.
+
+`cross_check.md` ported with one adaptation: a small footer
+section ("Signalling the loop") instructing the model to call
+`exit_loop` on PASS and not call it on FAIL. The rest of the
+prompt — audit methodology, "bias toward passing" rule, output
+format including the VERDICT line — is unchanged.
+
+**What we did**: Kept synthesise.md fully verbatim. Added the
+exit_loop footer to cross_check.md.
+
+**Implication**: Five out of seven specialist prompts have now
+ported successfully (news, catalysts, geo, synthesise, and
+cross_check). The hypothesis from Phase 2's retrospective —
+"prompt-level discipline is the portable layer" — is solidly
+established. cross_check's adaptation is the minimum necessary
+change: Phase 2 routed audits by parsing the VERDICT line, Phase
+3 routes via function calls, and the prompt has to tell the
+model how to signal that.
+
+The two remaining specialists (sense_check, revise) are
+structurally similar to cross_check and synthesise_revise — the
+prompt-port hypothesis should hold for them too, with cross_check's
+exit_loop adaptation likely needed for sense_check as well.
+
+---
+
+## 2026-05-12 — `exit_loop` reliably terminates the synthesis audit loop
+
+**Observed**: Two scenarios in `smoke_synthesis_loop` both
+exhibited correct loop termination behaviour:
+
+- **Happy path** (real synthesis): cross_check PASSed on iteration
+  1, called exit_loop, loop exited. 1 cross_check event, 0
+  synthesise_revise events. 13.3 seconds total.
+- **Fail→revise path** (fabricated bad synthesis): iteration 1
+  cross_check FAILed (no exit_loop call), synthesise_revise ran
+  and produced a revised synthesis, iteration 2 cross_check
+  PASSed (exit_loop called), loop exited. 2 cross_check events,
+  1 synthesise_revise event. 43.7 seconds total.
+
+**What we did**: Validated. STEP-03 had this listed as an open
+question because GitHub issues #2988 and #2692 reported cases
+where exit_loop was called but the loop didn't actually exit.
+
+**Implication**: For our use case — text-output auditors carrying
+exit_loop as their only tool — the mechanism works correctly.
+The alternating-but-not-exiting bug pattern from those issues
+appears to be specific to other configurations (possibly multi-
+tool agents where exit_loop competes with other function calls
+for the model's attention).
+
+The PR 4 rendering loop should be expected to work the same way:
+`LoopAgent(sense_check, revise)` with exit_loop bound to
+sense_check. PR 5's orchestrator-level testing will be the final
+proof point.
+
+---
+
+## 2026-05-12 — Gemini's auditor calibration is excellent — bias-toward-passing holds, fabricated issues caught comprehensively
+
+**Observed**: The dual-scenario cross_check smoke validated both
+sides of the auditor's calibration:
+
+**PASS path:** real synthesis from real research produced a clean
+VERDICT: PASS with exit_loop called. No false-positive failures
+on minor variance.
+
+**FAIL path:** fabricated bad synthesis with three planted issues:
+
+1. Dominant narrative contradicting cross-stream signals (consistency)
+2. Fabricated price ($67.50 vs real $101.59) in HEADLINE METRICS
+   (grounding)
+3. Fabricated "1.2% decline" claim contradicting research saying
+   "rise modestly by 360k bpd" (grounding)
+
+Auditor caught all three. **Plus one I hadn't planted** — it
+spotted that HEADLINE METRICS mentioned an OPEC+ production
+increase without the crucial context (from Geopolitics Theme 3)
+that actual OPEC output had fallen to a two-decade low. That's
+genuine analytical alertness, not just pattern-matching.
+
+Output was format-compliant: VERDICT line, SUMMARY paragraph,
+CONSISTENCY ISSUES list, CALIBRATION ISSUES list, GROUNDING
+ISSUES list, RE-RESEARCH TARGETS list. Re-research targets
+correctly identified as price, news, and geopolitics.
+
+**What we did**: Validated. STEP-03 had this listed as an open
+question because Phase 2's auditor calibration was tuned over
+iterations on Haiku; Phase 3 was the first test of whether the
+same prompt would calibrate on Gemini.
+
+**Implication**: Gemini 2.5 Flash performs auditor work at least
+as well as Haiku 4.5 did. The "bias toward passing" guidance
+in the prompt is taking effect — the auditor doesn't fail on
+minor variance, only on material issues. The "would a competent
+reader reach a wrong conclusion" framing is doing real work in
+the model's decision-making.
+
+For PR 4 (sense_check) and PR 5 (orchestrator), we can rely on
+calibrated audits without expecting to add Gemini-specific
+softening or hardening to the prompts.
+
+---
+
+## 2026-05-12 — Empty cross_check_result on PASS (function_call-only response)
+
+**Observed**: On PASS, `state["cross_check_result"]` is empty
+after the cross_check agent runs. The model called `exit_loop`
+successfully (verified via event stream), but no text response
+was produced. The ADK warning surfaced:
+
+> *"there are non-text parts in the response: ['function_call'],
+> returning concatenated text result from text parts."*
+
+There are no text parts. Gemini produced *only* the function
+call.
+
+**Root cause**: Gemini learned from training (and the ADK docs
+example reinforces) that a model should EITHER call a tool OR
+output text, not both. On PASS, the response is "call exit_loop"
+with no accompanying assessment text. `output_key`
+captures the text response — which is empty — so state ends up
+without audit notes.
+
+**What we did**: Nothing structural. Updated STEP-06 to document
+this. The smoke detection logic already correctly used
+function_call detection rather than state parsing.
+
+**Implication**: This affects PR 4 and PR 5 design:
+
+1. **PR 4 sense_check** will exhibit the same behaviour —
+   PASS verdict will leave state["sense_check_result"] empty.
+2. **PR 5 orchestrator** must detect PASS via function_call events,
+   not by parsing state["cross_check_result"] or
+   state["sense_check_result"]. The state key will be empty/None
+   after a PASS.
+3. **Lost observability on PASS rationale.** Phase 2 captured the
+   full "VERDICT: PASS\n\nSUMMARY\nThe synthesis is grounded..."
+   in state for human review. Phase 3 loses that on PASS — we
+   know it passed (exit_loop fired) but not why.
+
+If we want to recover the PASS rationale, the cross_check (and
+sense_check) prompt can be modified to require text output BEFORE
+calling exit_loop. The docs example warns models against doing
+both, but explicit instruction can override. Deferring to see
+how painful the empty-PASS state is in practice — if PR 5
+orchestrator-level debugging is hampered, we'll revisit.
+
+---
+
+## 2026-05-12 — Template substitution + str-serialised dict works for price_data
+
+**Observed**: `state["price_data"]` was seeded as
+`str(price_data_dict)` — i.e., Python's repr of a dict. When
+synthesise's instruction included `{price_data}`, ADK substituted
+the str-serialised dict verbatim into the prompt. Gemini parsed
+content like `'last_close': 101.56, 'daily_change_pct': 3.56`
+correctly, generating "3.56% surge" and "$101" references in
+the synthesis.
+
+**What we did**: Used `str(price_data_dict)` when seeding state.
+No JSON marshalling.
+
+**Implication**: For PR 5 orchestrator, no need to add JSON
+serialisation logic for price_data — `str()` suffices. The
+synthesise/draft/sense_check prompts read price_data as readable
+text, not parsed structure.
+
+If a future agent needs price_data as structured input (e.g.,
+to do arithmetic on the fields), `json.dumps()` would be cleaner.
+For text-reasoning specialists, `str()` is fine.
+
+---
+
+## 2026-05-12 — Stale-events warning is harmless but verbose
+
+**Observed**: When running multiple agents over the same session,
+ADK emits warnings like:
+
+> *"Event from an unknown agent: research_geo, event id: ..."*
+
+These appear when a session's event history contains events from
+agents that aren't in the current Runner's agent tree. In our
+smokes, this happened because we first ran research_parallel,
+then ran synthesise as a separate Runner — synthesise's Runner
+sees the old research events but doesn't recognise the agent
+names.
+
+**What we did**: Nothing. The warnings don't affect correctness;
+state passes through cleanly.
+
+**Implication**: For PR 5 orchestrator using one unified Runner
+across the full pipeline, this should disappear (all agents will
+be in the orchestrator's tree). For development/smoke-test
+clarity, we may want to suppress the warning via logging
+configuration. Worth a one-line filter in the runner helper if
+the noise gets in the way of seeing real output.
