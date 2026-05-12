@@ -149,3 +149,120 @@ Two consequences for Phase 3:
 
 Phase 1 vs Phase 2 vs Phase 3 install size is now a meaningful
 data point for the eventual three-phase retrospective.
+
+## 2026-05-12 — Prompt-port-verbatim hypothesis holds for Gemini Flash
+
+**Observed**: First Phase 3 specialist (`research_news`) used the
+`news.md` prompt unchanged from Phase 2. Smoke output was
+format-compliant on first attempt:
+
+- Five items, labelled `ITEM 1` through `ITEM 5`
+- All six required fields per item (Headline, Source, URL, Why it
+  matters, Direction, Timeframe)
+- `Direction` values correctly one of three allowed strings;
+  `Timeframe` correctly one of two
+- No preamble or closing commentary (both forbidden by the prompt)
+
+**What we did**: Nothing. The hypothesis held, the prompt didn't
+need adjustment.
+
+**Implication**: This is the first concrete validation of the Phase
+2 retrospective's claim that "prompt-level discipline is the portable
+layer." A prompt written for Claude Haiku 4.5 produced equivalent
+format compliance on Gemini 2.5 Flash without any modification.
+
+This makes PRs 2-5 substantially less risky. The remaining seven
+specialists (catalysts, geopolitics, synthesise, cross_check, draft,
+sense_check, revise) can all be expected to port verbatim. If any
+*doesn't* port cleanly, that's the surprise worth investigating.
+
+---
+
+## 2026-05-12 — google_search returns Vertex grounding redirect URLs, not direct source URLs
+
+**Observed**: Every URL in `research_news`'s output uses the form:
+
+```
+https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEY...
+```
+
+These are click-tracked redirects, not direct publisher URLs.
+Comparison with Phase 2 Tavily output (which returned URLs like
+`https://reuters.com/business/...`) shows this is a meaningful
+difference in citation shape.
+
+Additionally, when an ITEM cites multiple sources, the URL field
+becomes a comma-separated list of redirect URLs. ITEM 1 in the
+smoke run cited six sources and produced six concatenated URLs.
+
+The `Source` field still carries the human-readable publisher names
+(Reuters, EIA, OPEC, etc.), so attribution works for a reader.
+
+**What we did**: Nothing structural — captured in STEP-04 as a
+finding. The pattern is documented behaviour of Vertex AI Search
+Grounding (Google routes all grounding citations through the
+redirect for usage tracking).
+
+**Implication**: Three things to watch in subsequent PRs:
+
+1. **Catalysts and geopolitics specialists will show the same
+   pattern.** Confirmed expected; no workaround needed for research
+   itself.
+2. **The synthesis layer (PR 3) reads research output verbatim.**
+   The synthesise prompt should be checked for any assumption that
+   URLs are direct (probably none — synthesis cares about facts,
+   not link targets).
+3. **The draft layer (PR 4) needs a decision: should URLs surface
+   to the briefing reader, or should we strip them and rely on
+   the `Source` field?** Phase 2 included URLs; Phase 3 may want
+   to suppress them given they're opaque redirects.
+
+This is a real cross-phase difference. Worth a section in the
+Phase 3 retrospective when we get there: "the `google_search`
+grounding model is not a drop-in replacement for direct search
+APIs in citation-quality terms, even though content quality is
+comparable."
+
+---
+
+## 2026-05-12 — Runner helper pattern proven, will be reused
+
+**Observed**: `briefing_agent.runner.run_specialist(agent, query)`
+extracted the ADK `Runner` + `InMemorySessionService` + event-loop
+walking into ~30 lines of helper code. The smoke test for
+`research_news` became a 6-line async main function as a result.
+
+**What we did**: Nothing more. Will reuse for every subsequent
+specialist smoke test.
+
+**Implication**: ADK's invocation surface is verbose (Strands was
+one line: `agent(query)`). The helper amortises that boilerplate.
+For PR 2 we'll have `smoke_research_catalysts` and
+`smoke_research_geo`, each one-line against `run_specialist`.
+
+The orchestrator (PR 5) will NOT use this helper — it has its own
+event-handling logic with the `event.actions.escalate = False`
+suppression workaround. This helper is development-only.
+
+---
+
+## 2026-05-12 — yfinance + dataclass + asdict pattern ports cleanly
+
+**Observed**: `fetch_price` smoke ran first attempt. All 12
+`PriceSnapshot` fields populated, numbers in plausible ranges:
+
+- CL=F at $98.89 on 2026-05-12 (note: STEP-02 verify showed ~$97
+  the day before; ~2% daily move is normal)
+- Daily change +0.84%, intraday range 1.30%
+- 5-day avg $96.45, 20-day avg $96.80 (close to spot, suggests
+  recent stable trading)
+- 52-week range $54.98 – $119.48 (wide, captures the 2025-2026
+  geopolitical-tension-driven volatility)
+
+**What we did**: Nothing. yfinance worked, dataclass serialised,
+no surprises.
+
+**Implication**: Phase 1 → Phase 2 → Phase 3 `fetch_price` is now
+proven across all three phases. The PriceSnapshot data shape is
+the stable contract; only the wrapping (class, @tool, plain
+function) changes per phase.
