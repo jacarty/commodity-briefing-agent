@@ -659,3 +659,241 @@ be in the orchestrator's tree). For development/smoke-test
 clarity, we may want to suppress the warning via logging
 configuration. Worth a one-line filter in the runner helper if
 the noise gets in the way of seeing real output.
+
+## 2026-05-12 — Prompt-port-verbatim hypothesis holds for draft and revise
+
+**Observed**: Both `draft.md` and `revise.md` ported character-
+for-character from Phase 2 and produced format-compliant output
+on first run.
+
+- Draft: four mandatory section headers (PRICE / NEWS /
+  CATALYSTS / GEOPOLITICS) in order, 2-4 paragraphs each, no
+  bullets, no headers within sections, voice consistent, HEADLINE
+  METRICS from synthesis embedded naturally in prose.
+- Revise: same four-section structure, fixed all planted issues,
+  no preamble or change-summary commentary.
+
+`sense_check.md` ported with the same minimal adaptation as
+cross_check.md — a footer instructing exit_loop on PASS.
+
+**What we did**: Nothing — prompts didn't need adjustment.
+
+**Implication**: Six of seven Phase 3 specialist prompts have
+now ported verbatim. The hypothesis from Phase 2's retrospective
+("prompt-level discipline is the portable layer") is solidly
+established. The seventh specialist (orchestrator) is a custom
+BaseAgent in code rather than a prompt-driven LlmAgent, so the
+prompt-port question doesn't apply.
+
+---
+
+## 2026-05-12 — Sense_check calibration is stricter than cross_check on real inputs
+
+**Observed**: The standalone `smoke_sense_check` PASS scenario,
+running on a real draft from a real synthesis, returned
+**VERDICT: FAIL**. The auditor's flagged issue was characterised
+by its own SUMMARY as "minor but distinct":
+
+> *"The CATALYSTS SECTION in the brief includes the API Weekly
+> Crude Stock report as a key data release to watch. The synthesis
+> mentions U.S. crude oil inventory drawdowns as a past/current
+> factor supporting prices but does not explicitly identify the
+> API report as a forward-looking catalyst..."*
+
+The sense_check prompt explicitly says:
+
+> *"Bias toward passing. A brief with one or two minor issues
+> should pass with notes, not fail. Only fail when revision
+> would meaningfully improve the brief for the reader."*
+
+By its own admission the auditor saw a minor issue, and still
+failed.
+
+For comparison, cross_check in PR 3 PASSed real syntheses
+cleanly with the same calibration language.
+
+**What we did**: Documented. Not changing the prompt — wait to
+see if this pattern repeats across multiple runs before
+adjusting.
+
+**Implication**: Three things to carry forward:
+
+1. **Brief auditing has more dimensions** (faithfulness,
+   structure, prose, consistency) than synthesis auditing
+   (consistency, calibration, grounding). More dimensions →
+   more potential issues → more likely to find one to flag.
+2. **In production, expect rendering_loop to hit iteration 2
+   more often than synthesis_loop.** The 30-second revise
+   cycle becomes more common, not exceptional. PR 5
+   orchestrator timing budget should account for this.
+3. **Worth experimenting with stronger softening** in the
+   sense_check prompt language ("default to PASS unless the
+   issue would mislead the reader" rather than "bias toward
+   passing"). Deferred to post-Phase-3 prompt tuning, as
+   changing the prompt now muddies cross-phase comparison.
+
+---
+
+## 2026-05-12 — Model variance: same draft, different verdicts
+
+**Observed**: Two runs of sense_check on similar real drafts
+from the same upstream chain (within minutes of each other)
+produced different verdicts:
+
+- `smoke_sense_check` PASS scenario → VERDICT: FAIL on a minor
+  faithfulness issue
+- `smoke_rendering_loop` happy path → VERDICT: PASS on iteration
+  1, exit_loop called
+
+Same agent, same system prompt, same instruction wrapper, same
+model, same Gemini configuration. Different drafts (each ran
+its own upstream chain) but both were real outputs from real
+research/synthesis.
+
+**What we did**: Nothing structural. Documented.
+
+**Implication**: This is normal LLM non-determinism. But it has
+real consequences for design and observability:
+
+1. **Auditor smoke tests must accept variance.** A single FAIL
+   on a "PASS scenario" isn't necessarily a calibration issue —
+   it could be variance. Multiple runs would smooth this out.
+2. **The rendering_loop is robust to this variance.** Even if
+   iteration 1 produces a strict FAIL, iteration 2's
+   sense_check (a separate call) is likely to pass after the
+   revise. The cap-fallback design (max_iterations=2) absorbs
+   this.
+3. **PR 5 orchestrator timing should be probabilistic.** Some
+   runs will pass first try; some will hit revise. Worst-case
+   budget remains ~60-90s for the rendering loop, same as
+   synthesis_loop.
+
+For the eventual Phase 3 retrospective: variance across runs
+is more noticeable in Phase 3 than in Phases 1/2, possibly
+because Gemini Flash has different sampling defaults than
+Haiku. Worth comparing across phases.
+
+---
+
+## 2026-05-12 — Revise is not surgical — answers STEP-03's deferred question
+
+**Observed**: The revise prompt's central instruction:
+
+> *"This is targeted revision, not a rewrite. Don't change
+> sections that weren't flagged."*
+
+In the `smoke_rendering_loop` fail→revise scenario, the
+fabricated bad draft had specific issues to fix:
+
+- Bullet points in PRICE SECTION (forbidden)
+- NEWS and GEOPOLITICS both leading with Hormuz (repetition)
+- Fabricated "OPEC emergency meeting next Tuesday" in CATALYSTS
+
+Revise correctly fixed all three. But the revised output
+looks very similar to a fresh draft from the synthesis — same
+lead numbers, same narrative arc, similar paragraph structure
+across all four sections. Revise didn't preserve the
+fabricated draft's structure and surgically patch the issues;
+it produced what amounts to a **fresh rendering of the synthesis
+that happens to address the issues**.
+
+The fabricated draft's PRICE SECTION had nothing about the
+specific 4.45% number; the revised PRICE SECTION leads with
+"4.45% surge" and "WTI above $102". That information wasn't in
+the fabricated draft — it came from the synthesis, fresh.
+
+**What we did**: Logged. Not changing the prompt — same
+prompt-port-verbatim discipline as the other specialists.
+This finding goes into the retrospective for cross-phase
+comparison.
+
+**Implication**: This answers STEP-03's deferred "what I'm not
+yet sure about" question: **revise doesn't stay surgical on
+Gemini Flash**. The output is correct and addresses the
+issues, but the surgical-edit behaviour the prompt requests
+isn't what Gemini delivers.
+
+Three open questions for the retrospective:
+
+1. Does Phase 2's Haiku revise more surgically with the same
+   prompt? (Comparison test.)
+2. Does Phase 1's LangGraph revise show different behaviour
+   again? (Comparison test.)
+3. Is this a model-level difference, a prompt-tuning issue, or
+   a framework difference?
+
+For Phase 3 specifically, this is fine — the final brief is
+correct and addresses every audit issue. But it's a meaningful
+behavioural difference worth investigating cross-phase.
+
+---
+
+## 2026-05-12 — Empty-state-on-PASS pattern confirmed for sense_check
+
+**Observed**: In the rendering_loop happy path,
+`state["sense_check_result"]` was empty after the PASS — same
+behaviour observed for cross_check in PR 3. The ADK warning
+surfaced:
+
+> *"there are non-text parts in the response: ['function_call'],
+> returning concatenated text result from text parts."*
+
+The exit_loop function call was the model's entire response on
+PASS. No text part, no audit assessment captured in state.
+
+**What we did**: Nothing — expected from PR 3's finding.
+
+**Implication**: Both auditors (cross_check, sense_check)
+exhibit identical empty-state-on-PASS behaviour. PR 5
+orchestrator detection logic should use function_call events
+uniformly across both audit loops:
+
+```python
+async for event in ctx.runner.run_async(...):
+    if event.content and event.content.parts:
+        for part in event.content.parts:
+            if part.function_call is not None and \
+               part.function_call.name == "exit_loop":
+                # auditor passed
+```
+
+This pattern works for both synthesis_loop and rendering_loop;
+no per-loop variation needed.
+
+---
+
+## 2026-05-12 — Rendering loop validates the LoopAgent pattern for the second time
+
+**Observed**: `smoke_rendering_loop` validated the same loop
+mechanics as `smoke_synthesis_loop` from PR 3:
+
+- Happy path: 1 sense_check, 0 revise, exit_loop called, 14.8s
+- Fail→revise: 2 sense_check, 1 revise, exit_loop on iteration
+  2, 46.2s
+
+The cap-fallback wasn't tested in this run (both scenarios
+exited cleanly within max_iterations=2). Worth knowing that
+the cap would activate if iteration 2's sense_check FAILed
+again — the loop would exit with state['draft'] holding the
+revised version and exit_loop NOT called.
+
+**What we did**: Validated.
+
+**Implication**: ADK's LoopAgent + exit_loop pattern works
+reliably for our use case across both audit loops. PR 5's
+orchestrator can layer two `LoopAgent`s into its pipeline with
+confidence — the mechanics are proven.
+
+Total cumulative time for a full pipeline run (estimate from
+observed timings):
+
+- fetch_price: ~1s
+- parallel research: ~30-50s
+- initial synthesise: ~14s
+- synthesis_loop (with revise): ~30-45s if FAIL on iter 1
+- initial draft: ~15s
+- rendering_loop (with revise): ~30-45s if FAIL on iter 1
+
+Worst-case full pipeline: roughly **120-170 seconds** (2-3
+minutes) if both audit loops hit iteration 2. PR 5 orchestrator
+budget should account for this.
