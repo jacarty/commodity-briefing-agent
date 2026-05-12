@@ -11,6 +11,8 @@ dependencies = [
     "google-genai==1.75.0",
     "python-dotenv>=1.0,<2.0",
     "pydantic>=2.0,<3.0",
+    # Price data — used by fetch_price. Same library as Phase 1/2.
+    "yfinance>=0.2.40,<0.3.0",
 ]
 
 [build-system]
