@@ -1,26 +1,27 @@
 """Phase 3 tools.
 
-`fetch_price` is a plain Python function — no ADK tool decorator. Per
-STEP-03 design, the custom orchestrator calls it directly:
+Two tools live here:
 
-    price = fetch_price()
-    ctx.session.state["price_data"] = price
+1. **`fetch_price`** — plain Python function, no ADK decorator. The
+   custom orchestrator (PR 5) will call it directly to populate
+   `state["price_data"]`. No LLM wrapper.
 
-No LLM wrapper. Deterministic data, no reason for an agent layer.
+2. **`exit_loop`** — ADK FunctionTool helper. Carried by auditor
+   specialists (cross_check in this PR, sense_check in PR 4). The
+   auditor's prompt tells the model to call `exit_loop` on PASS;
+   the function sets `tool_context.actions.escalate = True`, which
+   signals the parent LoopAgent to stop iterating.
 
-If a future change requires fetch_price to be available to a specialist
-(e.g. price-aware re-research), wrap it with `google.adk.tools.FunctionTool`
-at that point. For now: plain function.
-
-Phase 1's PriceSnapshot shape is preserved verbatim — same fields, same
-units, same definitions. Phase 2 was the same; Phase 3 keeps it.
+Phase 1's PriceSnapshot shape is preserved verbatim — same fields,
+same units, same definitions. Phase 2 was the same; Phase 3 keeps it.
 """
 
 from dataclasses import asdict, dataclass
 
 import yfinance as yf
+from google.adk.tools.tool_context import ToolContext
 
-__all__ = ["fetch_price", "PriceSnapshot"]
+__all__ = ["exit_loop", "fetch_price", "PriceSnapshot"]
 
 
 @dataclass
@@ -96,3 +97,23 @@ def fetch_price(symbol: str = "CL=F", days: int = 365) -> dict:
         fifty_two_week_low=float(history["Low"].min()),
     )
     return asdict(snapshot)
+
+
+def exit_loop(tool_context: ToolContext) -> dict:
+    """Signal the parent LoopAgent to exit.
+
+    Carried by auditor specialists (cross_check, sense_check). The
+    auditor's prompt tells the model to call this function when its
+    verdict is PASS. Calling it sets `tool_context.actions.escalate
+    = True`, which signals the LoopAgent to stop iterating.
+
+    Per STEP-03, the orchestrator's custom BaseAgent absorbs the
+    escalate signal so it doesn't halt the parent pipeline (the
+    LoopAgent-escalate-propagation issue documented in the ADK
+    repository).
+
+    Returns an empty dict — tools must return JSON-serializable
+    output, and there's no meaningful payload for this call.
+    """
+    tool_context.actions.escalate = True
+    return {}
