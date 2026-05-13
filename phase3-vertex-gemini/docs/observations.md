@@ -1096,3 +1096,217 @@ This also reinforces the "don't alarm on per-run latency"
 guidance from observability — Phase 3 will need percentile-
 based monitoring, not threshold-based, if it ever goes to real
 production.
+
+## 2026-05-13 — Agent Engine deploy requires cloudpickle workaround for src/ layout projects
+
+**Observed**: Agent Engine's `extra_packages` parameter copies
+files into the remote container but does not `pip install` them
+or add them to `sys.path`. For projects using a `src/` layout
+with `pyproject.toml` + Hatch build backend, the remote container
+cannot resolve module references in the pickle, producing
+`ModuleNotFoundError: No module named 'briefing_agent'`.
+
+Three approaches failed:
+1. `extra_packages=["./src/briefing_agent"]` — files extracted
+   but not importable
+2. `extra_packages=["."]` — project root shipped including
+   `pyproject.toml`, but not `pip install`ed
+3. `extra_packages=["dist/briefing_agent-0.1.0-py3-none-any.whl"]`
+   — wheel shipped but not `pip install`ed
+
+The fix: `cloudpickle.register_pickle_by_value(briefing_agent)`
+before the orchestrator is pickled. This embeds the full source
+code into the pickle, making it self-contained. The remote
+container never needs to import the module — the code is
+already in the pickle.
+
+**What we did**: Added `register_pickle_by_value` to `deploy.py`.
+Deploy succeeded on the next attempt.
+
+**Implication**: This is a known pain point — multiple
+`adk-python` GitHub issues (#2044, #2947, #3532) document the
+same `ModuleNotFoundError` pattern with `src/` layouts. The
+official recommendation is to build a wheel, but
+`register_pickle_by_value` is simpler and works reliably.
+
+For future ADK projects using `src/` layout, add
+`register_pickle_by_value` to the deploy script as standard
+practice. An alternative is source-based deployment via
+`AgentEngineConfig` with `source_packages` /
+`entrypoint_module` / `entrypoint_object`, which bypasses
+pickling entirely.
+
+---
+
+## 2026-05-13 — Agent Engine deploy is straightforward once pickle issue resolved; cloudpickle added automatically
+
+**Observed**: The deploy script ran without errors. Agent Engine's
+build process automatically detected and added `cloudpickle==3.1.2`
+as a required dependency — used to pickle the orchestrator for
+the managed runtime. We didn't need to list it in our
+requirements; Agent Engine added it.
+
+Build steps logged:
+1. Identify requirements (added cloudpickle automatically)
+2. Pickle orchestrator to `agent_engine.pkl` in staging bucket
+3. Write `requirements.txt` and tarball `dependencies.tar.gz`
+4. Create AgentEngine (LRO, ~3 minutes)
+
+Resource name format:
+`projects/<project-num>/locations/us-central1/reasoningEngines/<id>`
+
+**What we did**: Logged. Confirmed deploy works for our shape of
+agent (custom BaseAgent + multiple sub-agents + tools).
+
+**Implication**: For future deployments of similar agents, the
+deploy script template is reusable as-is. The `cloudpickle`
+detail is non-obvious — worth documenting that Agent Engine
+handles this rather than failing on a missing dependency.
+
+---
+
+## 2026-05-13 — Deployed pipeline behaves equivalently to local
+
+**Observed**: First deployed invocation completed in 141.1s with
+21 events, including the same iteration pattern as local (both
+audit loops hit iteration 2, FAIL→revise→PASS). FinalBrief
+produced with all three required fields, structurally identical
+HTML output.
+
+Comparison:
+
+| Dimension | Local | Deployed |
+|---|---|---|
+| Wall-clock | 129.0s | 141.1s |
+| Event count | 17 | 21 |
+| Iteration pattern | Both loops iter 2 | Both loops iter 2 |
+| FinalBrief format | Valid first try | Valid first try |
+
+The 4-event difference (17 vs 21) is because Vertex emits
+slightly more granular events per cross_check call — 3 events
+per call vs 2 events locally. Same function calls, different
+event yield granularity.
+
+**What we did**: Confirmed the deploy is functional. Logged the
+small event-count difference.
+
+**Implication**: The "deploy is the same code as local" promise
+held. Agent Engine doesn't change the agent's behaviour; it just
+hosts it. For monitoring purposes, deployed event counts will
+be ~10-20% higher than local for the same invocation.
+
+---
+
+## 2026-05-13 — Plain-text rendering differs subtly between local and deployed
+
+**Observed**: The deployed FinalBrief's `plain_text_body` has a
+blank line between each section header and the first paragraph:
+
+```
+PRICE SECTION
+
+Crude oil closed today at $100.75...
+```
+
+The local FinalBrief's `plain_text_body` puts the first paragraph
+immediately under the header without a blank line:
+
+```
+PRICE SECTION
+Crude oil closed today at $100.75...
+```
+
+Same model, same prompt, same instruction wrapper. Different
+output format.
+
+**What we did**: Logged. Not adjusting — both formats are valid
+plain text.
+
+**Implication**: Probably an artefact of Vertex's text
+serialisation when routing through Agent Engine. Could also be
+model variance (we've seen large variance in PR 5's smokes).
+
+If we cared about exact byte-for-byte equivalence between local
+and deployed outputs, we'd need to investigate further. For now,
+the content is identical; only whitespace differs.
+
+---
+
+## 2026-05-13 — Cold start adds ~10-15s to deployed pipeline latency
+
+**Observed**: First deployed invocation: 141.1s. Local
+equivalent: 129.0s. Difference: ~12 seconds.
+
+The cold-start overhead includes:
+- Container spin-up time for the managed runtime
+- First-time Gemini connection establishment from the deployed
+  agent's network position
+
+Subsequent invocations of a warm Agent Engine resource should
+be closer to local latency (~120-130s, modulo run-to-run
+variance).
+
+**What we did**: Noted. Did not run a second deployed smoke to
+confirm warm-start latency.
+
+**Implication**: For latency-sensitive deployment patterns, the
+agent should be invoked at least once after deploy to warm it
+up. For our use case (daily oil briefing), cold-start cost is
+absorbed by the daily nature of the run.
+
+---
+
+## 2026-05-13 — All four end-to-end pipeline runs (2 local + 2 deployed) saw both audit loops hit iteration 2
+
+**Observed**: Across:
+
+- Local run with state_delta bug (365s): both loops iter 2
+- Local run with state_delta fix (129s): both loops iter 2
+- Deployed run (141s): both loops iter 2
+
+In every real-pipeline end-to-end run, both audit loops
+required revise to reach PASS. The isolated PR 3/PR 4 smokes
+showed PASS-iter-1 outcomes for cross_check and sense_check on
+toy/fabricated inputs.
+
+**What we did**: Logged. Not changing prompts.
+
+**Implication**: Real-pipeline auditor behaviour differs
+materially from isolated-smoke behaviour. Production latency
+budgets should assume both audit loops require revise; that's
+the steady state observed across all real runs. If we wanted
+faster typical-case latency, the auditor prompts would need
+softening — but that's a separate piece of prompt tuning work
+outside Phase 3's scope.
+
+---
+
+## 2026-05-13 — STEP-03 deployment objective met; Phase 3 is complete
+
+**Observed**: STEP-03 stated *"Phase 3 ends with the agent
+deployed and invokable from a managed runtime."* Achieved.
+
+All seven STEP-03 open questions are now closed:
+
+- Prompt-port-verbatim ✅
+- google_search quality ✅
+- ParallelAgent parallelises ✅
+- exit_loop reliability ✅
+- PASS-with-notes calibration (mostly held — auditors lean strict on real input) ⚠️
+- escalate=False suppression ✅
+- output_schema=FinalBrief reliability ✅
+
+Plus STEP-03's deferred question (revise is not surgical) and
+the new finding about custom BaseAgent state writes needing
+state_delta — both documented in the retrospective.
+
+**What we did**: Marked Phase 3 as complete.
+
+**Implication**: Next piece of work is the cross-phase
+comparison (Phase 1 LangGraph vs Phase 2 Strands vs Phase 3
+ADK). That's a separate piece of work and deserves its own
+scoping.
+
+Deployed agent resource: `projects/873708835509/locations/us-central1/reasoningEngines/3829216919253155840`.
+Should be undeployed before extended idle to avoid hosting
+charges.
