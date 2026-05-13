@@ -15,7 +15,7 @@ Cross-check → (pass) Draft → Sense-check → (pass) Deliver → END
                                      Sense-check (fail) → Revise → Sense-check (loop)
 ```
 
-Full architecture write-up: [`docs/tutorials/13-architecture.md`](../docs/tutorials/13-architecture.md).
+Full architecture write-up: [`../docs/tutorials/phase-1/13-architecture.md`](../docs/tutorials/phase-1/13-architecture.md).
 
 ## Setup
 
@@ -70,4 +70,4 @@ phase1-langgraph/
 
 ## Tutorial steps
 
-The full coaching-mode walkthrough is in [`../docs/tutorials/`](../docs/tutorials/), STEP-01 through STEP-13.
+The full coaching-mode walkthrough is in [`../docs/tutorials/phase-1/`](../docs/tutorials/phase-1/), STEP-01 through STEP-13.

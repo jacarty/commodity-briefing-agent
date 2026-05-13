@@ -5,7 +5,7 @@ This repo is to support initial exploration and learning of agent frameworks acr
 The ultimate goal is to build a Daily Commodity Research agent — given the scale of public data available, Oil will be the focus to keep that side simple to source. The same agent is being created three ways:
    1. LangGraph with Claude via Anthropic API direct
    2. Strands Agents on Bedrock AgentCore Runtime (Claude via Bedrock)
-   3. Vertex Agent Engine (Gemini via Vertex)
+   3. ADK on Vertex AI Agent Engine (Gemini via Vertex)
 
 I picked Commodities trading as it's a side interest of mine, which is why this domain rather than something more obvious like a coding assistant.
 This is to deepen my hands-on experience with Bedrock/Vertex and provide comparative outcomes for the three approaches.
@@ -13,22 +13,24 @@ This is to deepen my hands-on experience with Bedrock/Vertex and provide compara
 ## Phases
 - **Phase 1** (LangGraph) — complete. 12 nodes, two bounded feedback loops, ~35 tests against real APIs.
 - **Phase 2** (Strands / Bedrock) — complete. 1 orchestrator + 8 specialists + 1 plain tool, agents-as-tools pattern, manual smoke tests.
-- **Phase 3** (Vertex / Gemini) — planned.
+- **Phase 3** (ADK / Vertex / Gemini) — complete. Custom `BaseAgent` orchestrator + `ParallelAgent` + two `LoopAgent` audit loops + 8 specialists, deployed to Vertex AI Agent Engine.
 
 ## Documentation
 
-- [`docs/tutorials/`](./docs/tutorials/) — step-by-step tutorial notes per phase
-- [`docs/retrospectives/`](./docs/retrospectives/) — phase retrospectives
+- [`docs/README.md`](./docs/README.md) — docs hub: index of tutorials, retrospectives, decisions
+- [`docs/tutorials/`](./docs/tutorials/) — step-by-step tutorial notes, one folder per phase
+- [`docs/retrospectives/`](./docs/retrospectives/) — phase retrospectives (one per phase)
 - [`docs/decisions/`](./docs/decisions/) — architecture decision records
 - [`docs/process.md`](./docs/process.md) — development process and PR cadence
 - [`CLAUDE.md`](./CLAUDE.md) — project context for Claude Code sessions
+- [`docs/retrospectives/`](./docs/retrospectives/when-this-pattern-earns-its-keep.md) — final reflections on the use-case
 
 ## Running a phase
 
 Each phase is independent. To work on a phase:
 
 ```bash
-cd phase1-langgraph   # or phase2-strands-bedrock
+cd phase1-langgraph   # or phase2-strands-bedrock, or phase3-vertex-gemini
 uv sync
 ```
 
