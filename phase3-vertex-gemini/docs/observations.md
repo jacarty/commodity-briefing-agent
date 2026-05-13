@@ -897,3 +897,202 @@ observed timings):
 Worst-case full pipeline: roughly **120-170 seconds** (2-3
 minutes) if both audit loops hit iteration 2. PR 5 orchestrator
 budget should account for this.
+
+## 2026-05-13 — Custom BaseAgent state writes must use EventActions(state_delta=...)
+
+**Observed**: The first version of PhaseThreeOrchestrator wrote
+`state["price_data"]` via direct assignment to
+`ctx.session.state[key]` and yielded an Event without state_delta.
+The end-to-end smoke ran successfully — synthesise consumed
+`{price_data}` via template substitution and produced grounded
+output — but inspecting the final session state showed
+`price_data: (missing)`.
+
+After the fix (adding
+`actions=EventActions(state_delta={"price_data": price_data_str})`
+to the yielded Event), the second smoke ran cleanly and the final
+state showed `price_data` populated as expected.
+
+**What we did**: Updated `orchestrator.py` to use a belt-and-
+braces approach: yield an Event with `state_delta` for canonical
+persistence AND direct-assign for immediate downstream visibility:
+
+```python
+price_data_str = str(price_data)
+yield Event(
+    author=self.name,
+    ...,
+    actions=EventActions(state_delta={"price_data": price_data_str}),
+)
+ctx.session.state["price_data"] = price_data_str  # belt-and-braces
+```
+
+**Implication**: In ADK, state mutations from a custom BaseAgent
+subclass need to flow through `EventActions.state_delta` to be
+persisted into the session state view that downstream consumers
+read. Direct `ctx.session.state[key] = value` assignment alone
+writes the value into the in-memory state dict (which downstream
+agents in the same invocation see) but isn't applied to the
+canonical session view by the SessionService.
+
+This is the kind of framework detail that's hard to find in the
+docs but obvious in retrospect. The community pattern uses
+state_delta consistently in BaseAgent examples; we just didn't
+follow it on the first attempt.
+
+For any future custom BaseAgent in Phase 3 (or future phases):
+state mutations go through state_delta.
+
+---
+
+## 2026-05-13 — Escalate suppression works as designed
+
+**Observed**: The full pipeline ran end-to-end with both audit
+loops hitting `max_iterations=2`. Each loop FAILed on iteration 1,
+ran the revise specialist, PASSed on iteration 2 via exit_loop.
+The orchestrator continued past each loop to the next stage —
+draft after synthesis_loop, final_brief after rendering_loop.
+
+If the escalate signal had propagated, the pipeline would have
+halted after synthesis_loop (the first loop to exit via
+exit_loop). It didn't; the suppression in `_run_async_impl`
+worked:
+
+```python
+async for event in self.synthesis_loop.run_async(ctx):
+    if event.actions is not None and event.actions.escalate:
+        event.actions.escalate = False
+    yield event
+```
+
+**What we did**: Validated the architectural workaround chosen in
+STEP-03. Custom BaseAgent + escalate=False clearing is the
+canonical pattern for chaining multiple LoopAgents in sequence.
+
+**Implication**: STEP-03's open question on `escalate=False`
+suppression is now closed — works as documented in adk-python#1376
+discussion. Future ADK pipelines that chain LoopAgents should
+expect to need this same pattern.
+
+---
+
+## 2026-05-13 — output_schema=FinalBrief produced valid output on first try in both smoke runs
+
+**Observed**: The `final_brief` specialist with
+`output_schema=FinalBrief` produced a valid Pydantic structure on
+the first attempt in both smoke runs (the broken one with
+price_data missing, AND the fixed one). All three required fields
+populated:
+
+- `subject`: "Crude oil briefing — 2026-05-13"
+- `html_body`: ~3000 char HTML fragment using only `<h2>` and
+  `<p>` tags as instructed
+- `plain_text_body`: plain text with UPPERCASE headers and blank-
+  line-separated paragraphs
+
+The retry path (catching `pydantic.ValidationError` and
+re-invoking the specialist) did not fire — no validation failures
+observed.
+
+**What we did**: Validated. STEP-03's open question on
+`output_schema=FinalBrief` reliability is now closed for happy-
+path inputs. The retry is defence-in-depth, not an observed
+necessity.
+
+**Implication**: For our use case (reformatting an already-
+well-structured 4-section draft into a typed brief), Gemini
+2.5 Flash on Vertex AI produces valid JSON reliably. We don't
+have evidence for high-variance / adversarial inputs; the retry
+remains there for those cases.
+
+---
+
+## 2026-05-13 — Both audit loops typically hit iteration 2 in real pipeline runs
+
+**Observed**: In the successful end-to-end smoke, both
+synthesis_loop AND rendering_loop hit `max_iterations=2`. Both
+audit specialists (cross_check, sense_check) FAILed iteration 1
+on real pipeline inputs and PASSed iteration 2 after revise.
+
+This extends PR 4's finding (sense_check is stricter than
+cross_check on real drafts). PR 5 shows even cross_check can FAIL
+real synthesis on iteration 1 — though it may have been
+influenced by the state_delta bug causing some kind of model
+confusion. The PR 4 standalone smoke (`smoke_synthesis_loop`)
+showed cross_check PASSing iteration 1 cleanly on a different
+real synthesis.
+
+**What we did**: Documented. Not adjusting prompts.
+
+**Implication**: Production latency budgets should assume both
+audit loops will hit iteration 2 some non-trivial fraction of
+the time. The 129s run with both audits in iteration 2 sets a
+reasonable upper bound for "two-loop-revise" runs; happy-path
+runs (both audits PASS iter 1) would be closer to 70-90s.
+
+Reconciling with PR 4's standalone smokes: those used fabricated
+bad inputs for failure scenarios and saw model variance. PR 5
+shows real-pipeline runs lean strict more often than the
+isolated tests suggested. Worth knowing for both monitoring
+(don't alarm on iter 2) and prompt tuning (if iter 1 PASS rate
+matters, soften the auditor prompts).
+
+---
+
+## 2026-05-13 — Auditor state on multi-iteration runs is unreliable
+
+**Observed**: In the iter-2-PASS scenario, `state["cross_check_result"]`
+contained: *"The synthesis provided has already been audited and
+passed. No further action is required."* This is text content,
+not the standard verdict-line format we'd expect.
+
+Best guess at root cause: iteration 1's FAIL wrote a full audit
+text to `cross_check_result`. Iteration 2's cross_check was
+invoked with that state still present; either the model read
+`{cross_check_result}` from state and reasoned about the prior
+audit, or ADK's empty-on-function-call behaviour left the
+iter-2 state untouched, preserving iter-1's content with some
+modification.
+
+**What we did**: Logged. Not adjusting.
+
+**Implication**: This is another reason to never rely on
+`state["cross_check_result"]` for PASS detection. The empty-on-
+PASS pattern (PR 3) is one part of the picture; the multi-
+iteration noise observed here is another. The function_call
+event detection is the only reliable PASS signal.
+
+For PR 6 deploy and any future consumer: detect audit verdicts
+from events, not from state.
+
+---
+
+## 2026-05-13 — Run-to-run variance in pipeline latency is large
+
+**Observed**: The same pipeline (no code changes between runs)
+produced these end-to-end timings on three smoke runs:
+
+- First run (broken — price_data state missing): 365.1s, 3 exit_loop calls
+- Second run (fixed): 129.0s, 2 exit_loop calls
+- Both had both audit loops hitting iteration 2
+
+The 3x latency difference is enormous given the runs are
+mechanically similar. Possible explanations:
+
+- Different number of exit_loop calls suggests different audit
+  trajectories despite both runs reaching iteration 2
+- Network/region variance in Vertex AI calls
+- Underlying Gemini Flash inference time varies more than
+  expected
+
+**What we did**: Logged. Not changing anything.
+
+**Implication**: For PR 6 deploy planning, latency budgets
+should be probabilistic, not point estimates. Single-run
+benchmarking will be unreliable. Worth running the deployed
+smoke multiple times to get a sense of distribution.
+
+This also reinforces the "don't alarm on per-run latency"
+guidance from observability — Phase 3 will need percentile-
+based monitoring, not threshold-based, if it ever goes to real
+production.
