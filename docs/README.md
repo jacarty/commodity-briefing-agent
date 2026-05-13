@@ -1,28 +1,41 @@
-# Tutorial — Building a LangGraph Commodity Briefing Agent
+# Documentation
 
-Personal step-by-step notes from building this project. Not reference
-documentation — these are my notes-to-self, written chronologically as I
-worked through each step in coaching mode with Claude.
+Docs hub for the Commodity Briefing Agent project. The repo builds the same conceptual agent three ways across three platforms; the documentation is organised by content type, not by phase.
 
-The goal is for future me to be able to skim a step and remember not just
-what I did but why the decisions made sense at the time.
+For the top-level project description, see the [project README](../README.md).
+For Claude Code session context, see [`../CLAUDE.md`](../CLAUDE.md).
 
-## Index
+## Tutorials
 
-- [STEP-01 — Orientation and project framing](./01-orientation.md)
-- [STEP-02 — Environment setup and first model call](./02-environment-setup.md)
-- [STEP-03 — Briefing and graph design](./03-graph-design.md)
-- [STEP-04 — First nodes: Plan and Research Price](./04-plan-and-price.md)
-- [STEP-05 — Research: News (the agent loop)](./05-news-research.md)
-- [STEP-06 — Bounded research: Catalysts and Geopolitics](./06-bounded-research.md)
-- [STEP-07 — Synthesise: the first reasoner](./07-synthesise.md)
-- [STEP-08 — Cross-check: the first auditor](./08-cross-check.md)
-- [STEP-09 — Re-research: closing the loop](./09-re-research.md)
-- [STEP-10 — Draft: prose at last](./10-draft.md)
-- [STEP-11 — Sense-check and Revise: prose-level audit](./11-sense-check-and-revise.md)
-- [STEP-12 — Deliver: email-shaped output](./12-deliver.md)
-- [STEP-13 — Architecture: lessons across the agent](./13-architecture.md)
+Step-by-step coaching-mode build notes, one folder per phase. These are personal notes-to-self, written chronologically as each phase was built. Not reference documentation.
 
-## Retrospective
+- [`tutorials/phase-1/`](./tutorials/phase-1/) — LangGraph + Anthropic API direct (STEP-01 through STEP-13)
+- [`tutorials/phase-2/`](./tutorials/phase-2/) — Strands Agents on Bedrock (STEP-01 through STEP-07)
+- [`tutorials/phase-3/`](./tutorials/phase-3/) — Google ADK on Vertex AI Agent Engine (STEP-01 through STEP-09)
 
-- [Phase 1 Retrospective](../retrospectives/phase-1-retrospective.md)
+## Retrospectives
+
+Phase-end retrospectives. Each captures what was built, what worked, what surprised, and what carries forward.
+
+- [`retrospectives/phase-1-retrospective.md`](./retrospectives/phase-1-retrospective.md) — LangGraph
+- [`retrospectives/phase-2-retrospective.md`](./retrospectives/phase-2-retrospective.md) — Strands / Bedrock (incl. Phase 1 vs Phase 2 comparison)
+- [`retrospectives/phase-3-retrospective.md`](./retrospectives/phase-3-retrospective.md) — ADK / Vertex (incl. Phase 2 vs Phase 3 comparison)
+
+A cross-phase comparison (1 vs 2 vs 3) is on the horizon as a separate piece of work.
+
+## Decisions
+
+Architecture Decision Records. Significant technical decisions taken during implementation that aren't already covered in tutorial steps.
+
+- [`decisions/0001-single-reresearch-path.md`](./decisions/0001-single-reresearch-path.md)
+
+## Process
+
+- [`process.md`](./process.md) — development process, branch/PR cadence, pre-commit and pre-PR agent gates, trivial-change fast path
+
+## Phase-local docs
+
+Some build-period notes live inside the phase directories rather than under `docs/`. They cover findings specific to that phase's framework and don't generalise to the whole project.
+
+- [`../phase2-strands-bedrock/docs/observations.md`](../phase2-strands-bedrock/docs/observations.md) — text-native findings during Phase 2 build
+- [`../phase3-vertex-gemini/docs/observations.md`](../phase3-vertex-gemini/docs/observations.md) — ADK findings during Phase 3 build
